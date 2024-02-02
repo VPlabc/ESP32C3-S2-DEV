@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>ESP IOT DASHBOARD</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="icon" type="image/png" href="favicon.png">
+        <link rel="stylesheet" type="text/css" href="style.css">
+    </head>
+    <body>
+        <div class="topnav">
+            <h1>Cân Điện tử</h1>
+        </div>
+        <div class="content">
+            <div class="card-grid">
+                <div class="card">
+                    <p class="card-title"> Tên NV</p>
+                    <input type="text" class="reading" id="name" />
+                    <p class="card-title"> Ca làm việc</p>
+                    <input type="text" class="reading" id="ca" />
+                    <p class="card-title"> Loại hàng</p>
+                    <input type="text" class="reading" id="loai" />
+                    <p><button id="buttoncheck" class="button">Check</button></p>
+                </div>
+                <div class="card">
+                    <p class="card-title"> khoi luong</p>
+                    <p class="reading"><span id="khoiluong"></span></p>
+                </div>
+                <div class="card">
+                    <p class="card-title"> Printer State</p>
+                    <p class="reading"><span id="Printer State"></span></p>
+                </div>
+            </div>
+        </div>
+          <div class="content">
+            <div class="card">
+              <p class="state">state: <span id="State">%STATE%</span></p>
+              <p><button id="button" class="button">Toggle</button></p>
+            </div>
+          </div>
+        <script src="script.js"></script>
+    </body>
+</html>
