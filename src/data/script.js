@@ -1,4 +1,4 @@
-var gateway = `ws://192.168.1.16/ws`;
+var gateway = `ws://192.168.1.105/ws`;
 var websocket;
 // Init web socket when the page loads
 window.addEventListener('load', onload);
@@ -68,9 +68,9 @@ function onMessage(event) {
     var a = document.getElementById("name").value;
     var b = document.getElementById("ca").value;
     var c = document.getElementById("loai").value;
-    var dataout = "{'NV':'"+a+"','CA':'"+b+"','LOAI':'"+c+"'}";
+    var dataout = "{'IN':'ok','NV':'"+a+"','CA':'"+b+"','LOAI':'"+c+"'}";
     console.log(dataout);
-    // websocket.send(dataout);
+    websocket.send(dataout);
   }
   function toggle(){
     websocket.send('toggle');

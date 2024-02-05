@@ -5,6 +5,8 @@
 //{"Application":[{"app":"0,0,7,0,0,Demo Machine1,0,2,1,3,4,5,6"},{"app":"1,0,7,1,0,Demo Machine2,7,9,8,10,11,12,13"},{"app":"2,0,7,2,0,Demo Machine3,14,16,15,17,18,19,20"},{"app":"3,0,7,3,0,Demo Machine4,21,23,22,24,25,26,27"}]}
 //{"app":"0,0,7,0,0,Demo Machine 1,0,2,1,3,4,5,6"},
 #include <Arduino.h>
+#include <ArduinoJson.h>
+#include <DNSServer.h>
 // #define Rad
 // #define Sendmessage
 // #define BLE
@@ -33,8 +35,11 @@
 // #include <Adafruit_Sensor.h>
 
 // Replace with your network credentials
-const char* ssid = "iSoft";
-const char* password = "i-soft@123";
+// const char* ssid = "iSoft";
+// const char* password = "i-soft@123";
+
+const char* ssid = "Hoang Vuong";
+const char* password = "91919191";
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
@@ -47,7 +52,7 @@ JSONVar readings;
 
 // Timer variables
 unsigned long lastTime = 0;
-unsigned long timerDelay = 30000;
+unsigned long timerDelay = 3000;
 
 
 // #include <HardwareSerial.h>  // if error you can also use SoftwareSerial, check first_view_arduino
@@ -64,12 +69,17 @@ int printStatus = 0;
 // Check which pin pairs are responsible for communication on your board!
 const byte rxPin = 5;//10;
 const byte txPin = 7;//9;
-const byte rxPin1 = 1;
-const byte txPin1 = 3;
+const byte rxPin1 = 3;
+const byte txPin1 = 1;
 const int printerBaudrate = 9600;  // or 19200 usually
 const byte LedPin = 15;  // if used
 // const byte LedPin = 4;  // if used
 bool ledState = 0;
+String IDNV = "";
+String NameNV = "";
+String CaLam = "";
+String Loai = "";
+String KhoiLuong = "";
 //Define two Serial devices mapped to the two internal UARTs
 HardwareSerial MySerial0(0);
 HardwareSerial MySerial1(1);
@@ -78,41 +88,71 @@ HardwareSerial MySerial1(1);
 EscPos ESCPOS(&MySerial0);
 
 #endif//ESC_CMD
-String DataForm = "\
-SIZE 50 mm,30 mm\n\
-GAP  2 mm, 0 mm\n\
-SPEED 4\n\
-DENSITY 6\n\
-DIRECTION 1\n\
-SHIFT 0\n\
-CLS\n\
-TEXT 24,12,\"3\",0,1,1,\"Sr.No.:S00008\"\n\
-TEXT 18,171,\"3\",0,2,2,\"KL:-  3.06 kg\"\n\
-TEXT 20,56,\"3\",0,1,1,\"Date:2024/01/23 23:56:41\"\n\
-TEXT 20,94,\"3\",0,1,1,\"LINE:01\"\n\
-TEXT 19,133,\"3\",0,1,1,\"NV:VinhPhat\"\nPRINT 1\n";
+// String DataForm = "\
+// SIZE 50 mm,30 mm\n\
+// GAP  2 mm, 0 mm\n\
+// SPEED 4\n\
+// DENSITY 6\n\
+// DIRECTION 1\n\
+// SHIFT 0\n\
+// CLS\n\
+// TEXT 24,12,\"3\",0,1,1,\"Sr.No.:S00008\"\n\
+// TEXT 18,171,\"3\",0,2,2,\"KL:khoiluong\"\n\
+// TEXT 20,56,\"3\",0,1,1,\"Date:2024/01/23 23:56:41\"\n\
+// TEXT 20,94,\"3\",0,1,1,\"LINE:ca\"\n\
+// TEXT 19,133,\"3\",0,1,1,\"NV:Name\"\n\
+// PRINT 1\n";
 
   String keyword[] = {"","","","","","","",".:", "L:" , "e:", "E:", "V:", "T "};
-  String Name[] = {"   No.","   Ca:","   Loai:","   TG:","   NV:"," KL:"};
+  String label[] = {"   No.","   Ca:","   Loai:","   TG:","   NV:"," KL:"};
+  //0 series / 1 LK / 2 TG / 3 LINE / 4 NV / 5 PRINT
   byte edit[] = {0,3,5,2,4,1};
   byte size[] = {1,1,1,1,1,2};
   byte bold[] = {0,0,0,0,1,0};
+  String dataPrint[20];
 
+void CheckScript(String DataForm);
 String checkLine(String data, String split);
 String dataStr[20];
 String dataIn = "";
 int strCount = 0;
+
+
+DNSServer dnsServer;
+
+class CaptiveRequestHandler : public AsyncWebHandler {
+public:
+  CaptiveRequestHandler() {}
+  virtual ~CaptiveRequestHandler() {}
+
+  bool canHandle(AsyncWebServerRequest *request){
+    //request->addInterestingHeader("ANY");
+    return true;
+  }
+
+  void handleRequest(AsyncWebServerRequest *request) {
+    AsyncResponseStream *response = request->beginResponseStream("text/html");
+    response->print("<!DOCTYPE html><html><head><title>Captive Portal</title></head><body>");
+    response->print("<p>This is out captive portal front page.</p>");
+    response->printf("<p>You were trying to reach: http://%s%s</p>", request->host().c_str(), request->url().c_str());
+    response->printf("<p>Try opening <a href='http://%s'>this link</a> instead</p>", WiFi.softAPIP().toString().c_str());
+    response->print("</body></html>");
+    request->send(response);
+  }
+};
 
 String getSensorReadings();
 void initWiFi();
 void initSPIFFS();
 void initWebSocket();
 void notifyClients(String sensorReadings);
-void printScript();
+void printScript(String DataForm);
 void notifyClientsLed();
 
 void setup() {
-  Serial.begin(9600);   
+  ////////////////////////  SERIAL SETUP //////////////////////////
+  Serial.begin(9600);  
+  delay(3000); 
   LOGLN("Start");
       // And configure MySerial1 on pins RX=D9, TX=D10
     MySerial1.begin(printerBaudrate, SERIAL_8N1, rxPin1, txPin1);
@@ -120,24 +160,33 @@ void setup() {
     // Configure MySerial0 on pins TX=6 and RX=7 (-1, -1 means use the default)
     MySerial0.begin(printerBaudrate, SERIAL_8N1, rxPin, txPin);
     // MySerial0.println("MySerial0");
+  ////////////////////////  PRINTER SETUP //////////////////////////
 
 #ifdef ESC_CMD
     ESCPOS.set58mm();
     ESCPOS.start();
 #endif//ESC_CMD
+  ////////////////////////  IO SETUP //////////////////////////
 
     // Initialize pin 8 as an output
     pinMode(LedPin, OUTPUT);
+  ////////////////////////  IO SETUP //////////////////////////
   LOGLN("Done");   
+  ////////////////////////  OTHER SETUP //////////////////////////
   initWiFi();
   initSPIFFS();
   initWebSocket();
-  // Web Server Root URL
+  ////////////////////////  SERVER SETUP //////////////////////////
+
+//your other setup stuff...
+  WiFi.softAP("Can dien tu");
+  dnsServer.start(53, "*", WiFi.softAPIP());
+  server.addHandler(new CaptiveRequestHandler()).setFilter(ON_AP_FILTER);//only when requested from AP  // Web Server Root URL
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(SPIFFS, "/index.html", "text/html");
   });
 
-  server.serveStatic("/", SPIFFS, "/");
+  // server.serveStatic("/", SPIFFS, "/");
 
   // Start server
   server.begin();
@@ -146,19 +195,21 @@ void setup() {
 }
 bool New = 0;
     String DataIn = "";
+    String DataIns = "";
     bool found = false;
+    int count = 0;
 void loop() {
 
   digitalWrite(LedPin, ledState);
   if (Serial.available() > 0) {
     if(Serial.read() == '`'){
-      printScript();
+      // printScript(NameNV,CaLam,Loai,KhoiLuong);
     }
 
   }
   if ((millis() - lastTime) > timerDelay) {
     String sensorReadings = getSensorReadings();
-    Serial.print(sensorReadings);
+    // Serial.print(sensorReadings);
     notifyClients(sensorReadings);
     lastTime = millis();
   }
@@ -173,20 +224,58 @@ void loop() {
     printStatus = ESCPOS.getStatus();     // get the current status of the ESCPOS printer
       ledState = !ledState;
       notifyClientsLed();
+
+    //  LOGLN("Count: " + String(count)); 
   }
 
+
+    while(MySerial1.available())
+    {
+        char inchar = (char)MySerial1.read();
+        if(inchar == '\n') {//LOG(inchar);//
+        dataStr[strCount++]=DataIn;DataIn = "";
+        count++;
+        }
+        else{DataIn += inchar;//LOG(inchar);
+        }
+    }
+  if(count == 13){count = 0;
+  for(int j = 0; j < strCount; j++) { DataIns += dataStr[j] + '\n';}
+  CheckScript(dataStr[10]);
+  for(int j = 0; j < strCount; j++) {dataStr[j] = "";}
+  // LOG("DataIn\n" + DataIns);
+  strCount = 0;
+  // CheckScript(DataIn);
+  DataIns = "";
+  }
+  
 }//loop
 
+      //0 series / 1 KL / 2 TG / 3 LINE / 4 NV / 5 PRINT
+void CheckScript(String Str){
+  LOGLN(Str);
+  String code = checkLine(Str,"E:");
+  LOGLN(code);
 
-void printScript(){
+  int member = (int(code[0]-48))*10 + int(code[1]-48);
+  LOGLN("member ID: " + String(member));
+  int shift = int(code[2]-48);
+  LOGLN("shift: " + String(shift));
+  int type = int(code[3]-48);
+  LOGLN("shift: " + String(type));
+}
+
+void printScript(String DataForms){
   #ifdef ESC_CMD
-  for(int j = 0; j < DataForm.length(); j++) {
-    // checkLine(DataForm,' ');
-    if(DataForm[j] == '\n') {dataStr[strCount++]=dataIn; dataIn ="";}
-    else{dataIn += DataForm[j];}
+  for(int j = 0; j < DataForms.length(); j++) {
+    // checkLine(DataForms,' ');
+    if(DataForms[j] == '\n') {dataStr[strCount++]=dataIn; dataIn ="";}
+    else{dataIn += DataForms[j];}
   }
+
       // ESCPOS.margin(1,50);
       ESCPOS.set58mm();
+      ESCPOS.characterSet(3,35);
       ESCPOS.effectOff();
       ESCPOS.justifyCenter();
       ESCPOS.lineSpacing(5);  
@@ -196,11 +285,12 @@ void printScript(){
   for(int j = 7; j < strCount; j++) {
     if(size[j-7] == 2) {ESCPOS.effectDoubleHeight();ESCPOS.effectDoubleWidth();}
     if(bold[j-7] == 1) {ESCPOS.effectBold();}  
-      // LOGLN("Edit:"+String(edit[j-7]) + " |size:" + String(size[j-7]) + " |bold:" + String(bold[j-7]));
-      // LOGLN(dataStr[edit[j-7]+7] + " | " + keyword[edit[j-7]+7]);  
-      LOGLN(checkLine(dataStr[edit[j-7]+7],keyword[edit[j-7]+7]));
-      ESCPOS.print(Name[j-7]);
-      ESCPOS.println(checkLine(dataStr[edit[j-7]+7],keyword[edit[j-7]+7]));  
+      LOGLN("Edit:"+String(edit[j-7]) + " |size:" + String(size[j-7]) + " |bold:" + String(bold[j-7]));
+      LOGLN(dataPrint[edit[j-7]+7] + " | " + keyword[edit[j-7]+7]);  
+      LOGLN(dataStr[edit[j-7]+7]);
+      ESCPOS.print(label[j-7]);
+      ESCPOS.println(dataPrint[edit[j-7]+7]);
+
     if(bold[j-7] == 1) {ESCPOS.effectOff();}
     if(bold[j-7] == 2) {ESCPOS.effectOff();}
   }
@@ -217,9 +307,11 @@ String getSensorReadings(){
     readings["Printer State"] = "printer online";   // debug that we are online
   } else {
     readings["Printer State"] = "printer offline: ";  // debug that we are offline
-    Serial.println(printStatus);        // debug the returned status code  
+    // Serial.println(printStatus);        // debug the returned status code  
   } 
-  readings["khoiluong"] = String(random(10,100)) + "Kg";
+  KhoiLuong = String(random(10,100)) + "Kg";
+  readings["khoiluong"] = KhoiLuong;
+  
   // readings["Printer State"] = String(printStatus);
   String jsonString = JSON.stringify(readings);
   return jsonString;
@@ -254,121 +346,124 @@ void notifyClientsLed() {
   ws.textAll(String(jsonString));
 }
 
-String processor(const String& var){
-  Serial.println(var);
-  if(var == "STATE"){
-    if (ledState){
-      return "ON";
-    }
-    else{
-      return "OFF";
-    }
-  }
-  return String();
-}
 
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
   AwsFrameInfo *info = (AwsFrameInfo*)arg;
   if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
     data[len] = 0;
     if (strcmp((char*)data, "toggle") == 0) {
-      printScript();
+      // printScript(NameNV,CaLam,Loai,KhoiLuong);
     }
       LOGLN((char*)data);
       // LOGLN("NV" + strcmp((char*)data, "NV"));
       // LOGLN("CA" + strcmp((char*)data, "CA"));
       // LOGLN("LOAI" + strcmp((char*)data, "LOAI"));
       String sensorReadings = getSensorReadings();
-      Serial.println(sensorReadings);
+      // Serial.println(sensorReadings);
       notifyClients(sensorReadings);
 
       
   }
 }
 
-void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
-  switch (type) {
-    case WS_EVT_CONNECT:
-      Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
-      break;
-    case WS_EVT_DISCONNECT:
-      Serial.printf("WebSocket client #%u disconnected\n", client->id());
-      break;
-    case WS_EVT_DATA:
-      handleWebSocketMessage(arg, data, len);
-      break;
-    case WS_EVT_PONG:
-    case WS_EVT_ERROR:
-      break;
+void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
+  if(type == WS_EVT_CONNECT){
+    // Serial.printf("ws[%s][%u] connect\n", server->url(), client->id());
+    client->printf("{\"Client\": %u }", client->id());
+    client->ping();
+  } else if(type == WS_EVT_DISCONNECT){
+    // Serial.printf("ws[%s][%u] disconnect\n", server->url(), client->id());
+  } else if(type == WS_EVT_ERROR){
+    Serial.printf("ws[%s][%u] error(%u): %s\n", server->url(), client->id(), *((uint16_t*)arg), (char*)data);
+  } else if(type == WS_EVT_PONG){
+    // Serial.printf("ws[%s][%u] pong[%u]: %s\n", server->url(), client->id(), len, (len)?(char*)data:"");
+  } else if(type == WS_EVT_DATA){
+    AwsFrameInfo * info = (AwsFrameInfo*)arg;
+    String msg = "";
+    if(info->final && info->index == 0 && info->len == len){
+      //the whole message is in a single frame and we got all of it's data
+      // Serial.printf("ws[%s][%u] %s-message[%llu]: ", server->url(), client->id(), (info->opcode == WS_TEXT)?"text":"binary", info->len);
+
+      if(info->opcode == WS_TEXT){
+        for(size_t i=0; i < info->len; i++) {
+          msg += (char) data[i];
+        }
+      } else {
+        char buff[3];
+        for(size_t i=0; i < info->len; i++) {
+          sprintf(buff, "%02x ", (uint8_t) data[i]);
+          msg += buff ;
+        }
+      }
+      Serial.printf("%s\n",msg.c_str());
+
+  DynamicJsonDocument doc(1024);
+  String input = msg.c_str();
+  deserializeJson(doc, input);
+  JsonObject obj = doc.as<JsonObject>();
+  String cmd = obj["IN"];
+  String id = obj["ID"];
+  String name = obj["NV"];
+  String ca = obj["CA"];
+  String loai = obj["LOAI"];
+  if(cmd == "ok") {
+  NameNV = name;
+  CaLam = ca;
+  Loai = loai;
+  IDNV = id;
+  LOGLN(id +"|" + name + "|" + ca + "|" + loai);
+  readings["console"] = "Save:" + id + name + "|" + ca + "|" + loai;
+  // readings["Printer State"] = String(printStatus);
+  String jsonString = JSON.stringify(readings);
+      notifyClients(jsonString);
+      printScript(DataForm);
+  }
+      // if(info->opcode == WS_TEXT)
+      //   // client->text("{\"FB\":\"ok\"}");
+      // else
+      //   // client->binary("{\"FB\":\"Bin ok\"}");
+    } else {
+      //message is comprised of multiple frames or the frame is split into multiple packets
+      if(info->index == 0){
+        // if(info->num == 0)
+          // Serial.printf("ws[%s][%u] %s-message start\n", server->url(), client->id(), (info->message_opcode == WS_TEXT)?"text":"binary");
+        // Serial.printf("ws[%s][%u] frame[%u] start[%llu]\n", server->url(), client->id(), info->num, info->len);
+      }
+
+      // Serial.printf("ws[%s][%u] frame[%u] %s[%llu - %llu]: ", server->url(), client->id(), info->num, (info->message_opcode == WS_TEXT)?"text":"binary", info->index, info->index + len);
+
+      if(info->opcode == WS_TEXT){
+        for(size_t i=0; i < len; i++) {
+          msg += (char) data[i];
+        }
+      } else {
+        char buff[3];
+        for(size_t i=0; i < len; i++) {
+          sprintf(buff, "%02x ", (uint8_t) data[i]);
+          msg += buff ;
+        }
+      }
+      Serial.printf("%s\n",msg.c_str());
+
+      if((info->index + len) == info->len){
+        // Serial.printf("ws[%s][%u] frame[%u] end[%llu]\n", server->url(), client->id(), info->num, info->len);
+        if(info->final){
+          // Serial.printf("ws[%s][%u] %s-message end\n", server->url(), client->id(), (info->message_opcode == WS_TEXT)?"text":"binary");
+        //   if(info->message_opcode == WS_TEXT)
+        //     // client->text("{\"FB\":\"ok! I got your text message\"}");
+        //   else
+        //     // client->binary("{\"FB\":\"ok! I got your binary message\"}");
+        }
+      }
+    }
   }
 }
 
 void initWebSocket() {
-  ws.onEvent(onEvent);
+  ws.onEvent(onWsEvent);
   server.addHandler(&ws);
 }
 
-
-// void handle_web_command_silent()
-// {
-//     level_authenticate_type auth_level= web_interface->is_authenticated();
-//     if (auth_level == LEVEL_GUEST) {
-//         web_interface->web_server.send(401,"text/plain","Authentication failed!\n");
-//         return;
-//     }
-//     String buffer2send = "";
-//     String cmd = "";
-//     //int count ;
-//     if (web_interface->web_server.hasArg("plain") || web_interface->web_server.hasArg("commandText")) {
-//         if (web_interface->web_server.hasArg("plain")) {
-//             cmd = web_interface->web_server.arg("plain");
-//         } else {
-//             cmd = web_interface->web_server.arg("commandText");
-//         }
-//         LOGLN("Web Command:%s", cmd.c_str());
-//     } else {
-//         LOGLN("Invalid argument");
-//         web_interface->web_server.send(200,"text/plain","Invalid command");
-//         return;
-//     }
-//     //if it is for ESP module [ESPXXX]<parameter>
-//     cmd.trim();
-//     int ESPpos = cmd.indexOf("[ESP");
-//     if (ESPpos==0) {
-//         //is there the second part?
-//         int ESPpos2 = cmd.indexOf("]",ESPpos);
-//         if (ESPpos2>-1) {
-//             //Split in command and parameters
-//             String cmd_part1=cmd.substring(ESPpos+4,ESPpos2);
-//             String cmd_part2="";
-//             //is there space for parameters?
-//             if ((uint)ESPpos2<cmd.length()) {
-//                 cmd_part2=cmd.substring(ESPpos2+1);
-//             }
-//             //if command is a valid number then execute command
-//             if(cmd_part1.toInt()!=0) {
-//                 if (COMMAND::execute_command(cmd_part1.toInt(),cmd_part2,NO_PIPE, auth_level)) {
-//                    web_interface->web_server.send(200,"text/plain","ok");
-//                 } else {
-//                    web_interface->web_server.send(500,"text/plain","error");
-//                 }
-
-//             }
-//             //if not is not a valid [ESPXXX] command
-//         }
-//     } else {
-//         //send command to serial as no need to transfer ESP command
-//         //to avoid any pollution if Uploading file to SDCard
-//         if ((web_interface->blockserial) == false) {
-//             //send command
-//             ESPCOM::println (cmd, DEFAULT_PRINTER_PIPE);
-//             web_interface->web_server.send(200,"text/plain","ok");
-//         } else {
-//             web_interface->web_server.send(200,"text/plain","Serial is busy, retry later!");
-//         }
-//     }
-
-// }
 #endif//Printer
 
 
@@ -577,7 +672,7 @@ void handleConfig() {
     strncpy(gateway_settings.pversion, PRGM_VERSION , sizeof(PRGM_VERSION) );
     EEPROM.put(0, gateway_settings);
     EEPROM.commit();
-    String s = "<!DOCTYPE html><html lang='en'><head><meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'/>";
+    String s = "<!DOCTYPE html><html lang='en'><head><meta label='viewport' content='width=device-width, initial-scale=1, user-scalable=no'/>";
     s += "<meta content='text/html;charset=utf-8' http-equiv='Content-Type'>";
     s += "<title>Wireless Serial</title>";
     s += "  <link rel='icon' type='image/png' sizes='16x16' href='data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAQAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIdUOc6IVTvpiFU654hVOuaIVTvkiVU74IdUOsqFUDaMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACIVDvli1c9/4pWPf+KVj3/ilY9/4pXPf+LVz3/jVk+/4lWPPaBSS5pAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgk064oVRPf+EUDz/hFA8/4RQPP98Rz3/fUk8/4VRPP+KVzz/jVk+/4ROMXwAAAAA/8s1///LNf//yzX//8s1///KM///yjL//8oy///KMv//yjL//8ky//C4Nf+wfjr/f0o8/4pWPP+LVz3/AAAAAP/FM///xTP//8Uz///FM///xTP//8Uz///FM///xTP//8Uz///FM///xjP//8wy/76LOf+DTzz/jFg9/4ZTOLX/xTP//8Uz///FM///xTP//8Uz///FM///xTP//8Uz///FM///xTP//8Uz///FM///xzP/f0s8/4pWPP+IVTvj/8Uz///FM///xTP//8Uz///FM///xTP//8Uz///FM///xTP//8Uz///FM///xTP//8oy/6JwO/+HUzz/ilY88//FM///xTP//8Uz///FM///xTP//8Uz///FM///xTP//8Uz///FM///xTP//8Uz///KMv+fbTv/h1Q8/4pWPPP/xTP//8Uz///FM///xTP//8Uz///FM///xTP//8Uz///FM///xTP//8Uz///GM///xTP/fUg8/4pWPP+JVjri/8Yz///GM///xjP//8Yz///GM///xjP//8Yz///GM///xjP//8Yz///HM///yzL/sX46/4RRPP+MWD3/h1I4sf/GMvT/xjL0/8Yy9P/FMvP4wDP99740//e+NP/3vjT/9740//O6NP/dpzf/m2k7/4JOPP+KVjz/iVY8/wAAAAAAAAAAAAAAAAAAAAAAAAAAd0A74X5IPf98Rzz/fEc8/3xHPP99SDz/gEw8/4dTPP+LVz3/jFg9/4FKL2sAAAAAAAAAAAAAAAAAAAAAAAAAAIhVOuaMWD7/i1c9/4tXPf+LVz3/i1c9/4xYPf+OWT//iFQ75XxDJ0gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACHUji2iFQ6zohTOc2HVDnMh1M5yodUOsaGUjerf0YqVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8AAPAPAADwAwAA8AEAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA8AEAAPADAADwDwAA//8AAA=='/>";
@@ -604,7 +699,7 @@ void handleConfig() {
 
     uint32_t realSize = 4000;//ESP.getFlashChipRealSize();
     uint32_t ideSize = 4000;//ESP.getFlashChipSize();
-    String s = "<!DOCTYPE html><html lang='en'><head><meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'/>";
+    String s = "<!DOCTYPE html><html lang='en'><head><meta label='viewport' content='width=device-width, initial-scale=1, user-scalable=no'/>";
     s += "<meta content='text/html;charset=utf-8' http-equiv='Content-Type'>";
     s += "<title>Wireless Serial</title>";
     s += "  <link rel='icon' type='image/png' sizes='16x16' href='data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAQAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIdUOc6IVTvpiFU654hVOuaIVTvkiVU74IdUOsqFUDaMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACIVDvli1c9/4pWPf+KVj3/ilY9/4pXPf+LVz3/jVk+/4lWPPaBSS5pAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgk064oVRPf+EUDz/hFA8/4RQPP98Rz3/fUk8/4VRPP+KVzz/jVk+/4ROMXwAAAAA/8s1///LNf//yzX//8s1///KM///yjL//8oy///KMv//yjL//8ky//C4Nf+wfjr/f0o8/4pWPP+LVz3/AAAAAP/FM///xTP//8Uz///FM///xTP//8Uz///FM///xTP//8Uz///FM///xjP//8wy/76LOf+DTzz/jFg9/4ZTOLX/xTP//8Uz///FM///xTP//8Uz///FM///xTP//8Uz///FM///xTP//8Uz///FM///xzP/f0s8/4pWPP+IVTvj/8Uz///FM///xTP//8Uz///FM///xTP//8Uz///FM///xTP//8Uz///FM///xTP//8oy/6JwO/+HUzz/ilY88//FM///xTP//8Uz///FM///xTP//8Uz///FM///xTP//8Uz///FM///xTP//8Uz///KMv+fbTv/h1Q8/4pWPPP/xTP//8Uz///FM///xTP//8Uz///FM///xTP//8Uz///FM///xTP//8Uz///GM///xTP/fUg8/4pWPP+JVjri/8Yz///GM///xjP//8Yz///GM///xjP//8Yz///GM///xjP//8Yz///HM///yzL/sX46/4RRPP+MWD3/h1I4sf/GMvT/xjL0/8Yy9P/FMvP4wDP99740//e+NP/3vjT/9740//O6NP/dpzf/m2k7/4JOPP+KVjz/iVY8/wAAAAAAAAAAAAAAAAAAAAAAAAAAd0A74X5IPf98Rzz/fEc8/3xHPP99SDz/gEw8/4dTPP+LVz3/jFg9/4FKL2sAAAAAAAAAAAAAAAAAAAAAAAAAAIhVOuaMWD7/i1c9/4tXPf+LVz3/i1c9/4xYPf+OWT//iFQ75XxDJ0gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACHUji2iFQ6zohTOc2HVDnMh1M5yodUOsaGUjerf0YqVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8AAPAPAADwAwAA8AEAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA8AEAAPADAADwDwAA//8AAA=='/>";
@@ -624,8 +719,8 @@ void handleConfig() {
     if (ideSize != realSize) s += "<div class='alert-danger'>Your flash size (" + String(ideSize) + ") is configured incorrectly. It should be " + String(realSize) + ".</div>";
     s += "<div class='col-md-12'>";
     s += "<form action='/' method='post'>";
-    s += "    <div class='col-12 mt-3'><label class='form-label'>Wi-Fi Name</label><input type='text' name='ssid' class='form-control' value='" + String(gateway_settings.ssid) + "'></div>";
-    s += "    <div class='col-12 mt-3'><label class='form-label'>Password</label><input type='password' name='password' class='form-control' value='' autocomplete='off'></div>";
+    s += "    <div class='col-12 mt-3'><label class='form-label'>Wi-Fi label</label><input type='text' label='ssid' class='form-control' value='" + String(gateway_settings.ssid) + "'></div>";
+    s += "    <div class='col-12 mt-3'><label class='form-label'>Password</label><input type='password' label='password' class='form-control' value='' autocomplete='off'></div>";
     s += "    <div class='form-floating'><br/><button class='btn btn-primary btn-lg' type='submit'>Save</button><br /><br /><br /></div>";
     s += " </form>";
     s += "</div>";
@@ -1260,7 +1355,7 @@ Serial.println("main interval: " + String(meshNet.interval));
 // Now set up two tasks to run independently.
   xTaskCreatePinnedToCore(
     TaskMain
-    ,  "TaskMain"   // A name just for humans
+    ,  "TaskMain"   // A label just for humans
     ,  1024  // This stack size can be checked & adjusted by reading the Stack Highwater
     ,  NULL
     ,  2  // Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
@@ -1463,7 +1558,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML><html>
 <head>
   <title>ESP-NOW DASHBOARD</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta label="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
   <link rel="icon" href="data:,">
   <style>

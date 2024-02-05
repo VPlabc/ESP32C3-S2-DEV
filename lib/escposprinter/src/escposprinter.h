@@ -24,7 +24,7 @@ int read();
 void start();
 
 int getStatus();
-void characterSet(uint8_t n);
+void characterSet(uint8_t n, uint8_t page);
 void lineSpacing(uint8_t n);
 void defaultLineSpacing();
 void set80mm();

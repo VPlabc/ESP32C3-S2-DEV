@@ -11,6 +11,7 @@ static const char GS = 0x1D;
 static const char DLE = 0x10;
 static const char EOT = 0x04;
 static const char ESC = 0x1B;
+static const char A_FS = 28;
   
 EscPos::EscPos(Stream *s, int baud) : _printer(s), baudrate(baud){}
 
@@ -103,10 +104,20 @@ void EscPos::defaultLineSpacing(){
 // 13 = Korea
 // 14 = Slovenia / Croatia
 // 15 = China
-void EscPos::characterSet(uint8_t n = 0){
+void EscPos::characterSet(uint8_t n = 0, uint8_t page = 35){
   this->write(ESC);  
   this->write('R');
   this->write(n);  
+   // Set the same encoding in text editor as in the printer!
+        if (page > 47) page = 47;
+
+        delay(100);
+        this->write(A_FS);
+        this->write('.');  // kanji mode off
+
+        this->write(ESC);
+        this->write('t');
+        this->write(page);
 }
 
 void EscPos::effectDoubleHeight(){
