@@ -21,10 +21,11 @@
 
 #ifdef Printer
 #define ESC_CMD
+#include <EEPROM.h>
 
 #include <Arduino.h>
 #include "SupportFile/StringSplit.h"
-
+// #include "main.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <AsyncTCP.h>
@@ -33,27 +34,36 @@
 #include <Arduino_JSON.h>
 // #include <Adafruit_BME280.h>
 // #include <Adafruit_Sensor.h>
+// Comment out for NO access controls
 
+// #define AccessControl
+
+// Set your server access username and password here (OPTIONAL:)
+
+#include "FileSystem.h"
+#include "SupportFile/stringTochar.h"
 // Replace with your network credentials
 // const char* ssid = "iSoft";
 // const char* password = "i-soft@123";
-
+#include "CaptivePortal.h"
 const char* ssid = "Hoang Vuong";
 const char* password = "91919191";
 
-// Create AsyncWebServer object on port 80
-AsyncWebServer server(80);
+// // Create AsyncWebServer object on port 80
+// AsyncWebServer server(80);
 
 // Create a WebSocket object
 AsyncWebSocket ws("/ws");
 
 // Json Variable to Hold Sensor Readings
 JSONVar readings;
+JSONVar SaveData;
 
 // Timer variables
 unsigned long lastTime = 0;
 unsigned long timerDelay = 3000;
 
+#include "config.h"
 
 // #include <HardwareSerial.h>  // if error you can also use SoftwareSerial, check first_view_arduino
 #ifdef ESC_CMD
@@ -65,6 +75,29 @@ int printStatus = 0;
 #define LOGLN(string) {Serial.println(string);}
 // You need to use max3485(for 3V3 logic lvl) or similar, if you have printer with rs232.
 // If you use esp32 or other MCU with 3v3 logic level you can try with logic level converter.
+#define         NUM_STAFF 100
+
+struct settings {
+  char pversion[8];
+  char ssid[32];
+  char password[64];
+  unsigned long baud;
+  bool Mode;
+} main_settings = {};
+
+
+ struct  staffInfo {
+  int id;
+  char name[32];
+  byte shift;
+  byte type;
+} main_staffInfo = {};
+
+ int             staffs_saved;
+ bool            new_staff_found;
+ uint16_t         incomingDataGroup[sizeof(struct staffInfo)];
+ staffInfo StaffInfo;
+staffInfo StaffInfos[NUM_STAFF];
 
 // Check which pin pairs are responsible for communication on your board!
 const byte rxPin = 5;//10;
@@ -118,28 +151,28 @@ String dataIn = "";
 int strCount = 0;
 
 
-DNSServer dnsServer;
+// DNSServer dnsServer;
 
-class CaptiveRequestHandler : public AsyncWebHandler {
-public:
-  CaptiveRequestHandler() {}
-  virtual ~CaptiveRequestHandler() {}
+// class CaptiveRequestHandler : public AsyncWebHandler {
+// public:
+//   CaptiveRequestHandler() {}
+//   virtual ~CaptiveRequestHandler() {}
 
-  bool canHandle(AsyncWebServerRequest *request){
-    //request->addInterestingHeader("ANY");
-    return true;
-  }
+//   bool canHandle(AsyncWebServerRequest *request){
+//     //request->addInterestingHeader("ANY");
+//     return true;
+//   }
 
-  void handleRequest(AsyncWebServerRequest *request) {
-    AsyncResponseStream *response = request->beginResponseStream("text/html");
-    response->print("<!DOCTYPE html><html><head><title>Captive Portal</title></head><body>");
-    response->print("<p>This is out captive portal front page.</p>");
-    response->printf("<p>You were trying to reach: http://%s%s</p>", request->host().c_str(), request->url().c_str());
-    response->printf("<p>Try opening <a href='http://%s'>this link</a> instead</p>", WiFi.softAPIP().toString().c_str());
-    response->print("</body></html>");
-    request->send(response);
-  }
-};
+//   void handleRequest(AsyncWebServerRequest *request) {
+//     AsyncResponseStream *response = request->beginResponseStream("text/html");
+//     response->print("<!DOCTYPE html><html><head><title>Captive Portal</title></head><body>");
+//     response->print("<p>This is out captive portal front page.</p>");
+//     response->printf("<p>You were trying to reach: http://%s%s</p>", request->host().c_str(), request->url().c_str());
+//     response->printf("<p>Try opening <a href='http://%s'>this link</a> instead</p>", WiFi.softAPIP().toString().c_str());
+//     response->print("</body></html>");
+//     request->send(response);
+//   }
+// };
 
 String getSensorReadings();
 void initWiFi();
@@ -152,6 +185,11 @@ void notifyClientsLed();
 void setup() {
   ////////////////////////  SERIAL SETUP //////////////////////////
   Serial.begin(9600);  
+   EEPROM.begin(sizeof(struct settings) );
+  delay(2000);
+  EEPROM.get( 0, main_settings );
+  if ( String(main_settings.pversion) != PRGM_VERSION )
+    memset(&main_settings, 0, sizeof(settings));
   delay(3000); 
   LOGLN("Start");
       // And configure MySerial1 on pins RX=D9, TX=D10
@@ -173,31 +211,71 @@ void setup() {
   ////////////////////////  IO SETUP //////////////////////////
   LOGLN("Done");   
   ////////////////////////  OTHER SETUP //////////////////////////
-  initWiFi();
-  initSPIFFS();
-  initWebSocket();
-  ////////////////////////  SERVER SETUP //////////////////////////
 
+  initSPIFFS();
+  ////////////////////////  SERVER SETUP //////////////////////////
+// Print a welcome message to the Serial port.
+	Serial.println("\n\nCaptive Test, V0.5.0 compiled " __DATE__ " " __TIME__ " by CD_FER");  //__DATE__ is provided by the platformio ide
+	Serial.printf("%s-%d\n\r", ESP.getChipModel(), ESP.getChipRevision());
+
+	startSoftAccessPoint(APssid, APpassword, localIP, gatewayIP);
+
+	setUpDNSServer(dnsServer, localIP);
+
+	setUpWebserver(server, localIP);
+
+  initWiFi();
+  initWebSocket();
+  FSsetup();
+	server.begin();
+
+	Serial.print("\n");
+	Serial.print("Startup Time:");	// should be somewhere between 270-350 for Generic ESP32 (D0WDQ6 chip, can have a higher startup time on first boot)
+	Serial.println(millis());
+	Serial.print("\n");
 //your other setup stuff...
-  WiFi.softAP("Can dien tu");
-  dnsServer.start(53, "*", WiFi.softAPIP());
-  server.addHandler(new CaptiveRequestHandler()).setFilter(ON_AP_FILTER);//only when requested from AP  // Web Server Root URL
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(SPIFFS, "/index.html", "text/html");
-  });
+  // WiFi.softAP("Can dien tu");
+  // dnsServer.start(53, "*", WiFi.softAPIP());
+  // server.addHandler(new CaptiveRequestHandler()).setFilter(ON_AP_FILTER);//only when requested from AP  // Web Server Root URL
+  // server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+  //   request->send(SPIFFS, "/index.html", "text/html");
+  // });
 
   // server.serveStatic("/", SPIFFS, "/");
 
   // Start server
-  server.begin();
-  
-
+  // server.begin();
+  // readMemoryFromFile(staffs_saved,StartupErrors, StaffInfos ,sizeof(struct staffInfo));
+  // for(int j = 0 ; j < staffs_saved; j++){
+  //   String monitor = "Staff:" + String(StaffInfos[j].id) + " | shift: " + String(StaffInfos[j].shift) + " | Type:" + String(StaffInfos[j].type);
+  //   LOGLN();
+  // }
 }
 bool New = 0;
     String DataIn = "";
     String DataIns = "";
     bool found = false;
     int count = 0;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 void loop() {
 
   digitalWrite(LedPin, ledState);
@@ -251,6 +329,18 @@ void loop() {
   
 }//loop
 
+
+
+
+
+
+
+
+
+
+
+
+
       //0 series / 1 KL / 2 TG / 3 LINE / 4 NV / 5 PRINT
 void CheckScript(String Str){
   LOGLN(Str);
@@ -262,7 +352,18 @@ void CheckScript(String Str){
   int shift = int(code[2]-48);
   LOGLN("shift: " + String(shift));
   int type = int(code[3]-48);
-  LOGLN("shift: " + String(type));
+  LOGLN("type: " + String(type));
+      String filename = "/data.txt";String str_out;
+      File file = FS.open(filename, "r"); // Now read FS to see if file exists
+      while(file.available()){
+        // Serial.write(file.read());
+        str_out += (char)file.read();
+      }
+      DynamicJsonDocument doc(1024);
+      deserializeJson(doc, str_out);
+      JsonObject obj = doc.as<JsonObject>();
+      String NVname = obj["Data"][member-1]["name"];
+      LOGLN("Nhân viên: " + NVname);
 }
 
 void printScript(String DataForms){
@@ -303,6 +404,39 @@ void printScript(String DataForms){
 }
 // Get Sensor Readings and return JSON object
 String getSensorReadings(){
+  //  webpage += "<table class='center'>";
+  // webpage += "<tr><th>Last Upload</th><th>Last Download/Stream</th><th>Units</th></tr>";
+  // webpage += "<tr><td>" + ConvBinUnits(uploadsize, 1) + "</td><td>" + ConvBinUnits(downloadsize, 1) + "</td><td>File Size</td></tr> ";
+  // webpage += "<tr><td>" + ConvBinUnits((float)uploadsize / uploadtime * 1024.0, 1) + "/Sec</td>";
+  // webpage += "<td>" + ConvBinUnits((float)downloadsize / downloadtime * 1024.0, 1) + "/Sec</td><td>Transfer Rate</td></tr>";
+  // webpage += "</table>";
+  // webpage += "<h4>Filing System</h4>";
+  // webpage += "<table class='center'>";
+  // webpage += "<tr><th>Total Space</th><th>Used Space</th><th>Free Space</th><th>Number of Files</th></tr>";
+  // webpage += "<tr><td>" + ConvBinUnits(FS.totalBytes(), 1) + "</td>";
+  // webpage += "<td>" + ConvBinUnits(FS.usedBytes(), 1) + "</td>";
+  // webpage += "<td>" + ConvBinUnits(FS.totalBytes() - FS.usedBytes(), 1) + "</td>";
+  // webpage += "<td>" + (numfiles == 0 ? "Pending Dir or Empty" : String(numfiles)) + "</td></tr>";
+  // webpage += "</table>";
+  // webpage += "<h4>CPU Information</h4>";
+  // webpage += "<table class='center'>";
+  // webpage += "<tr><th>Parameter</th><th>Value</th></tr>";
+  // webpage += "<tr><td>Number of Cores</td><td>" + String(chip_info.cores) + "</td></tr>";
+  // webpage += "<tr><td>Chip revision</td><td>" + String(chip_info.revision) + "</td></tr>";
+  // webpage += "<tr><td>Internal or External Flash Memory</td><td>" + String(((chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "Embedded" : "External")) + "</td></tr>";
+  // webpage += "<tr><td>Flash Memory Size</td><td>" + String((spi_flash_get_chip_size() / (1024 * 1024))) + " MB</td></tr>";
+  // webpage += "<tr><td>Current Free RAM</td><td>" + ConvBinUnits(ESP.getFreeHeap(), 1) + "</td></tr>";
+  // webpage += "</table>";
+  // webpage += "<h4>Network Information</h4>";
+  // webpage += "<table class='center'>";
+  // webpage += "<tr><th>Parameter</th><th>Value</th></tr>";
+  // webpage += "<tr><td>LAN IP Address</td><td>"              + String(WiFi.localIP().toString()) + "</td></tr>";
+  // webpage += "<tr><td>Network Adapter MAC Address</td><td>" + String(WiFi.BSSIDstr()) + "</td></tr>";
+  // webpage += "<tr><td>WiFi SSID</td><td>"                   + String(WiFi.SSID()) + "</td></tr>";
+  // webpage += "<tr><td>WiFi RSSI</td><td>"                   + String(WiFi.RSSI()) + " dB</td></tr>";
+  // webpage += "<tr><td>WiFi Channel</td><td>"                + String(WiFi.channel()) + "</td></tr>";
+  // webpage += "<tr><td>WiFi Encryption Type</td><td>"        + String(EncryptionType(WiFi.encryptionType(0))) + "</td></tr>";
+  // webpage += "</table> ";
   if (printStatus == 0) {               // if status is 0 then we are good
     readings["Printer State"] = "printer online";   // debug that we are online
   } else {
@@ -311,6 +445,25 @@ String getSensorReadings(){
   } 
   KhoiLuong = String(random(10,100)) + "Kg";
   readings["khoiluong"] = KhoiLuong;
+  readings["Total Space"] = ConvBinUnits(FS.totalBytes(), 1);
+  readings["Used Space"] = ConvBinUnits(FS.usedBytes(), 1);
+  readings["Free Space"] = ConvBinUnits(FS.totalBytes() - FS.usedBytes(), 1);
+
+  readings["Number of Files"] = (numfiles == 0 ? "Pending Dir or Empty" : String(numfiles));
+
+
+  esp_chip_info_t chip_info;
+  esp_chip_info(&chip_info);
+  readings["Number of Cores"] =  String(chip_info.cores);
+  readings["Chip revision"] = String(chip_info.revision);
+  readings["Current Free RAM"] = ConvBinUnits(ESP.getFreeHeap(), 1);
+
+  readings["LAN IP"] = String(WiFi.localIP().toString());
+  readings["MAC Address"] = String(WiFi.BSSIDstr());
+  readings["WiFi SSID"] = String(WiFi.SSID());
+  readings["WiFi RSSI"] = String(WiFi.RSSI());
+  readings["WiFi Channel"] = String(WiFi.channel());
+  readings["WiFi Encryption"] = String(EncryptionType(WiFi.encryptionType(0)));
   
   // readings["Printer State"] = String(printStatus);
   String jsonString = JSON.stringify(readings);
@@ -321,8 +474,18 @@ String getSensorReadings(){
 void initSPIFFS() {
   if (!SPIFFS.begin(true)) {
     Serial.println("An error has occurred while mounting SPIFFS");
+    StartupErrors = true;
+  }else{
+    Serial.println("SPIFFS mounted successfully");
+      // Route for root / web page
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+  });
+  server.on("/dataview", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(SPIFFS, "/dataview.html", String(), false, processor);
+  });
+    StartupErrors = false;
   }
-  Serial.println("SPIFFS mounted successfully");
 }
 
 // Initialize WiFi
@@ -335,6 +498,11 @@ void initWiFi() {
     delay(1000);
   }
   Serial.println(WiFi.localIP());
+  if (WiFi.scanComplete() == -2) WiFi.scanNetworks(true); // Complete an initial scan for WiFi networks, otherwise = 0 on first display!
+  if (!StartMDNSservice(ServerName)) {
+    Serial.println("Error starting mDNS Service...");;
+    StartupErrors = true;
+  }
 }
 
 void notifyClients(String sensorReadings) {
@@ -365,7 +533,36 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
       
   }
 }
+void saveStaffDatas(byte ID,byte TYPE,byte SHIFT) {
+    //  bat = EncodeRespond(BatL,BatH);
+    //  bat12 = EncodeRespond(Bat12L,Bat12H);
+    //  int ID = EncodeRespond(IDl,IDh);
+  new_staff_found = false;
+  // char name_save[32];
+  for (int i = 0; i < staffs_saved; i++) {
+    if (StaffInfos[i].id > 0){
+      // StaffInfos[i].name = name_save;
+      StaffInfos[i].shift = SHIFT;
+      StaffInfos[i].type = TYPE;
+      //StaffInfos[i].timestamp = time(nullptr);
+      // StaffInfos[i].timestamp = timeClient.getEpochTime();
+      new_staff_found = true;
+    }
+  }
 
+  if ( new_staff_found == false ) {
+    StaffInfos[staffs_saved].id = ID;
+    // StaffInfos[staffs_saved].name = name_save;//msg1.category;
+    StaffInfos[staffs_saved].shift = SHIFT;
+    StaffInfos[staffs_saved].type = TYPE;
+    //StaffInfos[staffs_saved].timestamp = time(nullptr);
+    // StaffInfos[staffs_saved].timestamp = timeClient.getEpochTime();
+    staffs_saved++;
+    Serial.println("New Staff");
+    saveMemoryToFile(staffs_saved,StartupErrors,(uint8_t *)&StaffInfos, sizeof(struct staffInfo));
+  }
+
+}
 void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
   if(type == WS_EVT_CONNECT){
     // Serial.printf("ws[%s][%u] connect\n", server->url(), client->id());
@@ -406,22 +603,85 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
   String name = obj["NV"];
   String ca = obj["CA"];
   String loai = obj["LOAI"];
-  if(cmd == "ok") {
-  NameNV = name;
-  CaLam = ca;
-  Loai = loai;
-  IDNV = id;
-  LOGLN(id +"|" + name + "|" + ca + "|" + loai);
-  readings["console"] = "Save:" + id + name + "|" + ca + "|" + loai;
-  // readings["Printer State"] = String(printStatus);
-  String jsonString = JSON.stringify(readings);
-      notifyClients(jsonString);
-      printScript(DataForm);
+  if(obj["IN"] == "wifisetting") {
+    String ssid_s = obj["ID"];
+    String pass_s = obj["NV"];
+    strncpy(main_settings.ssid,              string_char(ssid_s),             sizeof(main_settings.ssid) );
+    strncpy(main_settings.password,          string_char(pass_s),         sizeof(main_settings.password) );
+    main_settings.ssid[sizeof(ssid_s)]  = main_settings.password[sizeof(pass_s)]  =  0;  // string terminate
+    EEPROM.put(0, main_settings);
+    EEPROM.commit();
   }
-      // if(info->opcode == WS_TEXT)
-      //   // client->text("{\"FB\":\"ok\"}");
-      // else
-      //   // client->binary("{\"FB\":\"Bin ok\"}");
+  if(obj["IN"] == "staff") {
+  writeFile("/data.txt", msg.c_str());
+  }
+
+  if(obj["IN"] == "load") {  
+    LOGLN("load");
+    String Str_read = readFile("/data.txt");
+    LOGLN(Str_read);
+    notifyClients(Str_read);
+
+  }
+  if(obj["IN"] == "listfile") {    
+    int index_count = 0;
+    String list = "";
+    Directory(); // Get a list of files on the FS
+    list += "{\"IN\":\"file\",\"Data\":[";
+    list += "{\"type\":\"" + Filenames[index_count].ftype + "\",\"name\":\"" + Filenames[index_count].filename + "\",\"size\":\"" + Filenames[index_count].fsize + "\"}";index_count++;
+    while (index_count < numfiles) {
+    list += ",{\"type\":\"" + Filenames[index_count].ftype + "\",\"name\":\"" + Filenames[index_count].filename + "\",\"size\":\"" + Filenames[index_count].fsize + "\"}";
+    index_count++;
+  }
+  list += "]}";
+    // LOGLN(list);
+    notifyClients(list);
+  }
+
+  if(obj["IN"] == "deleteFile") {  
+    Handle_File_Delete(obj["file"]);
+  }
+  if(obj["IN"] == "downloadFile") {  
+      AsyncWebServerRequest *request;
+    String filename = obj["file"];
+      if (!filename.startsWith("/")) filename = "/" + filename;
+      File file = FS.open(filename, "r"); // Now read FS to see if file exists
+      String contentType = getContentType("download");
+      AsyncWebServerResponse *response = request->beginResponse(contentType, file.size(), [file](uint8_t *buffer, size_t maxLen, size_t total) mutable ->  size_t
+                                                                { return file.read(buffer, maxLen); });
+      response->addHeader("Server", "ESP Async Web Server");
+      request->send(response);
+      downloadtime = millis() - start;
+      downloadsize = GetFileSize(obj["file"]);
+  }
+  if(obj["IN"] == "streamFile") {  
+      Serial.println("Stream handler started...");String str_out ="";
+      String filename = obj["file"];
+      if (!filename.startsWith("/")) filename = "/" + filename;
+      File file = FS.open(filename, "r"); // Now read FS to see if file exists
+      while(file.available()){
+        // Serial.write(file.read());
+        str_out += (char)file.read();
+      }
+      String ContentType = "{\"content\":\"" + str_out+"\"}";
+      notifyClients(ContentType);
+
+  }
+  //  StaffInfos[NUM_STAFF]
+  if(obj["IN"] == "ok") {
+    LOGLN(id +"|" + name + "|" + ca + "|" + loai);
+    readings["console"] = "Save:" + id + name + "|" + ca + "|" + loai;
+    // readings["Printer State"] = String(printStatus);
+    String jsonString = JSON.stringify(readings);
+    notifyClients(jsonString);
+  // SaveData["data"] = String(id);
+  // SaveData["name"] = String(name);
+  // SaveData["shift"] = String(ca);
+  // SaveData["type"] = String(loai);
+  // String jsonStringsave = JSON.stringify(SaveData);
+
+      // printScript(DataForm);
+  }
     } else {
       //message is comprised of multiple frames or the frame is split into multiple packets
       if(info->index == 0){
@@ -429,6 +689,13 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
           // Serial.printf("ws[%s][%u] %s-message start\n", server->url(), client->id(), (info->message_opcode == WS_TEXT)?"text":"binary");
         // Serial.printf("ws[%s][%u] frame[%u] start[%llu]\n", server->url(), client->id(), info->num, info->len);
       }
+
+
+      // if(info->opcode == WS_TEXT)
+      //   // client->text("{\"FB\":\"ok\"}");
+      // else
+      //   // client->binary("{\"FB\":\"Bin ok\"}");
+
 
       // Serial.printf("ws[%s][%u] frame[%u] %s[%llu - %llu]: ", server->url(), client->id(), info->num, (info->message_opcode == WS_TEXT)?"text":"binary", info->index, info->index + len);
 
@@ -539,7 +806,7 @@ void Task2( void *pvParameters );
 uint16_t         incomingDataGroup[sizeof(struct MainRadarDatas)];
 MainRadarDatas mainData;
 MainGatewayDatas mainGatewayDatas;
-MainRadarDatas mainsensors[NUM_SENSORS];
+MainRadarDatas StaffInfos[NUM_SENSORS];
 // struct_setting meshNet.structsetting;
 
 bool Mode = MESH_mode;
@@ -548,8 +815,8 @@ bool pairing = false;
 unsigned long start;                // used to measure Pairing time
 esp_now_peer_info_t slave;
 int chan; 
-bool            new_sensor_found;
-int             sensors_saved;
+bool            new_staff_found;
+int             staffs_saved;
 #ifdef MESHWIFI
 
 
@@ -569,14 +836,14 @@ void IRAM_ATTR detectsMovement() {
 
 void VoltUpdate();
 
-void main::GetData(uint16_t DistanceAct, uint8_t EnergyAct, uint16_t DistanceMov, uint8_t EnergyMov, uint16_t MaxStation, uint16_t MaxMoving, uint16_t inactivity){
+void main::GetData(uint16_t DistanceAct, uint8_t EnergyAct, uint16_t DistanceMov, uint8_t EnergyMov, uint16_t type, uint16_t shift, uint16_t inactivity){
   VoltUpdate();
   mainData.distanceActive = DistanceAct;
   mainData.energyActive = EnergyAct;
   mainData.distanceMoving = DistanceMov;
   mainData.energyMoving = EnergyMov;
-  mainData.maxMoving = MaxMoving;
-  mainData.maxStation = MaxStation;
+  mainData.shift = shift;
+  mainData.type = type;
   mainData.inactivity = inactivity;
 }
 
@@ -610,7 +877,7 @@ struct settings {
   char password[64];
   unsigned long baud;
   bool Mode;
-} gateway_settings = {};
+} main_settings = {};
 
 bool setup_mode = false;
 int  connected_wifi_clients = 0;
@@ -666,11 +933,11 @@ void getDeviceMessages() {
 void handleConfig() {
 
   if (serverWS.method() == HTTP_POST) {
-    strncpy(gateway_settings.ssid,              serverWS.arg("ssid").c_str(),             sizeof(gateway_settings.ssid) );
-    strncpy(gateway_settings.password,          serverWS.arg("password").c_str(),         sizeof(gateway_settings.password) );
-    gateway_settings.ssid[serverWS.arg("ssid").length()]  = gateway_settings.password[serverWS.arg("password").length()]  =  0;  // string terminate
-    strncpy(gateway_settings.pversion, PRGM_VERSION , sizeof(PRGM_VERSION) );
-    EEPROM.put(0, gateway_settings);
+    strncpy(main_settings.ssid,              serverWS.arg("ssid").c_str(),             sizeof(main_settings.ssid) );
+    strncpy(main_settings.password,          serverWS.arg("password").c_str(),         sizeof(main_settings.password) );
+    main_settings.ssid[serverWS.arg("ssid").length()]  = main_settings.password[serverWS.arg("password").length()]  =  0;  // string terminate
+    strncpy(main_settings.pversion, PRGM_VERSION , sizeof(PRGM_VERSION) );
+    EEPROM.put(0, main_settings);
     EEPROM.commit();
     String s = "<!DOCTYPE html><html lang='en'><head><meta label='viewport' content='width=device-width, initial-scale=1, user-scalable=no'/>";
     s += "<meta content='text/html;charset=utf-8' http-equiv='Content-Type'>";
@@ -719,7 +986,7 @@ void handleConfig() {
     if (ideSize != realSize) s += "<div class='alert-danger'>Your flash size (" + String(ideSize) + ") is configured incorrectly. It should be " + String(realSize) + ".</div>";
     s += "<div class='col-md-12'>";
     s += "<form action='/' method='post'>";
-    s += "    <div class='col-12 mt-3'><label class='form-label'>Wi-Fi label</label><input type='text' label='ssid' class='form-control' value='" + String(gateway_settings.ssid) + "'></div>";
+    s += "    <div class='col-12 mt-3'><label class='form-label'>Wi-Fi label</label><input type='text' label='ssid' class='form-control' value='" + String(main_settings.ssid) + "'></div>";
     s += "    <div class='col-12 mt-3'><label class='form-label'>Password</label><input type='password' label='password' class='form-control' value='' autocomplete='off'></div>";
     s += "    <div class='form-floating'><br/><button class='btn btn-primary btn-lg' type='submit'>Save</button><br /><br /><br /></div>";
     s += " </form>";
@@ -748,8 +1015,8 @@ void handleDash() {
 void handleUpdate() {
 
   long baud = serverWS.arg("baud").toInt();
-  gateway_settings.baud = baud;
-  EEPROM.put(0, gateway_settings);
+  main_settings.baud = baud;
+  EEPROM.put(0, main_settings);
   EEPROM.commit();
   serverWS.send(200, "text/html", "1" );
 }
@@ -789,12 +1056,12 @@ void sendInfo(uint8_t num) {
   WiFi.macAddress(mac_address);
   StaticJsonDocument<150> info_data;
   info_data["type"] = "info";
-  info_data["version"] = gateway_settings.pversion;
+  info_data["version"] = main_settings.pversion;
   info_data["wifi"] = String(WiFi.RSSI());
   info_data["ip_address"] = WiFi.localIP().toString();
   info_data["mac_address"] = WiFi.macAddress();
   info_data["version"] = FRMW_VERSION;
-  info_data["baud"] = gateway_settings.baud;
+  info_data["baud"] = main_settings.baud;
   char   b[150];
   size_t len = serializeJson(info_data, b);  // serialize to buffer
   if (num != 255) webSocket.sendTXT(num, b);
@@ -832,7 +1099,7 @@ if(Mode == WIFI_mode){
       target += "}";
       Serial.println("Sen target \n" + target);
       meshNet.structsetting.id = BOARD_ID;
-      meshNet.structsetting.msgType = SETTING;
+      meshNet.structsetting.name = SETTING;
       for(byte i = 0; i < 9 ; i++){meshNet.structsetting.targetstation[i] = RADAR.targetstation[i];}
       for(byte i = 0; i < 9 ; i++){meshNet.structsetting.targetmoving[i] = RADAR.targetmoving[i];}
       esp_err_t result = esp_now_send(meshNet.defserverAddress, (uint8_t *) &meshNet.structsetting, sizeof(meshNet.structsetting));
@@ -902,8 +1169,8 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
           if ( socket_data["command"] == "update")  {
             if ( socket_data["key"] == "baud")  {
                 long baud = obj[String("value")];
-                gateway_settings.baud = baud;
-                EEPROM.put(0, gateway_settings);
+                main_settings.baud = baud;
+                EEPROM.put(0, main_settings);
                 EEPROM.commit();
                 // Serial.println(obj["value"]);
                 Serial.println(baud);
@@ -967,7 +1234,7 @@ switch (ret) {
   case updatefw.HTTP_UPDATE_OK:
       LOGLN("Update OK!!");
       Mode = MESH_mode;
-      EEPROM.put(0, gateway_settings);
+      EEPROM.put(0, main_settings);
       EEPROM.commit();
       delay(3000);ESP.restart();
     break;
@@ -987,8 +1254,8 @@ void getSensorReadings(uint8_t num){
   StaticJsonDocument<1024> readings;
   bool state = RADAR.read();
   readings["State"] = String(state);
-  readings["MaxStation"] = String(mainData.maxStation);
-  readings["MaxMoving"] = String(mainData.maxMoving);
+  readings["type"] = String(mainData.type);
+  readings["shift"] = String(mainData.shift);
   readings["inactivityTimer"] = String(mainData.inactivity);
   readings["stationaryDistance"] = String(mainData.distanceActive);
   readings["stationaryEnergy"] =  String(mainData.energyActive );
@@ -1028,16 +1295,16 @@ void Meshloop() {
       //Set values to send
       
       if(mainstep > 0) {
-        if(sensors_saved  > 1) {
+        if(staffs_saved  > 1) {
              meshNet.interval = 2000;
       //       mainData.rssi = sensors[mainstep-1].rssi;
-      //       mainData.msgType = sensors[mainstep-1].msgType;
+      //       mainData.name = sensors[mainstep-1].name;
       //       mainData.id = sensors[mainstep-1].id;
       //       mainData.distanceActive = sensors[mainstep-1].distanceActive;
       //       mainData.energyActive = sensors[mainstep-1].energyActive;
       //       mainData.distanceMoving = sensors[mainstep-1].distanceMoving;
       //       esp_err_t result = esp_now_send(meshNet.dataTrans.defserverAddress, (uint8_t *) &mainData, sizeof(mainData));
-      //     mainstep++;if(mainstep == meshNet.dataTrans.sensors_saved){mainstep = -1;}
+      //     mainstep++;if(mainstep == meshNet.dataTrans.staffs_saved){mainstep = -1;}
         }
         else{mainstep = 0;}
       }
@@ -1051,8 +1318,8 @@ void Meshloop() {
         RadarData += "| Charg " + String(Charg);
         RadarData += "| Full " + String(Full);
         RadarData += "| StateValue " + String(State);
-        RadarData += "| MaxStation " + String(mainData.maxStation);
-        RadarData += "| MaxMoving " + String(mainData.maxMoving);
+        RadarData += "| type " + String(mainData.type);
+        RadarData += "| shift " + String(mainData.shift);
         RadarData += "| inactivityTimer " + String(mainData.inactivity);
         RadarData += "| stationaryDistance "+ String(mainData.distanceActive);
         RadarData += "| stationaryEnergy " +  String(mainData.energyActive );
@@ -1064,7 +1331,7 @@ void Meshloop() {
         RadarData += "| Main current " + String(mainData.AMain);
         Serial.println("Radar\n " + RadarData);
         mainData.rssi = meshNet.rssi_display;
-        mainData.msgType = DATA; 
+        mainData.name = DATA; 
         mainData.id = BOARD_ID;
         mainData.state = State;
         // mainData.energyActive = mainData.energyActive;
@@ -1094,39 +1361,39 @@ void saveSensorDatas(byte RSSI,byte ID,byte type,byte maxMov,byte maxStat,byte i
     //  bat = EncodeRespond(BatL,BatH);
     //  bat12 = EncodeRespond(Bat12L,Bat12H);
     //  int ID = EncodeRespond(IDl,IDh);
-  new_sensor_found = false;
+  new_staff_found = false;
   
-  for (int i = 0; i < sensors_saved; i++) {
-    if (mainsensors[i].id > 0){
-       mainsensors[i].msgType = type;
-      mainsensors[i].maxMoving = maxMov;
-      mainsensors[i].maxStation = maxStat;
-      mainsensors[i].inactivity = inacT;
-      mainsensors[i].distanceActive = distanceSta;
-      mainsensors[i].energyActive = energySta;
-      mainsensors[i].distanceMoving = distanceMov;
-      mainsensors[i].energyMoving = energyMov;
-      mainsensors[i].rssi = RSSI;
-      //mainsensors[i].timestamp = time(nullptr);
-      // mainsensors[i].timestamp = timeClient.getEpochTime();
-      new_sensor_found = true;
+  for (int i = 0; i < staffs_saved; i++) {
+    if (StaffInfos[i].id > 0){
+       StaffInfos[i].name = type;
+      StaffInfos[i].shift = maxMov;
+      StaffInfos[i].type = maxStat;
+      StaffInfos[i].inactivity = inacT;
+      StaffInfos[i].distanceActive = distanceSta;
+      StaffInfos[i].energyActive = energySta;
+      StaffInfos[i].distanceMoving = distanceMov;
+      StaffInfos[i].energyMoving = energyMov;
+      StaffInfos[i].rssi = RSSI;
+      //StaffInfos[i].timestamp = time(nullptr);
+      // StaffInfos[i].timestamp = timeClient.getEpochTime();
+      new_staff_found = true;
     }
   }
 
-  if ( new_sensor_found == false ) {
-    mainsensors[sensors_saved].id = ID;
-    mainsensors[sensors_saved].msgType = type;//msg1.category;
-    mainsensors[sensors_saved].maxMoving = maxMov;
-    mainsensors[sensors_saved].maxStation = maxStat;
-    mainsensors[sensors_saved].inactivity = inacT;
-    mainsensors[sensors_saved].distanceActive = distanceSta;
-    mainsensors[sensors_saved].energyActive = energySta;
-    mainsensors[sensors_saved].distanceMoving = distanceMov;
-    mainsensors[sensors_saved].energyMoving = energyMov;
-    mainsensors[sensors_saved].rssi = RSSI;
-    //mainsensors[sensors_saved].timestamp = time(nullptr);
-    // mainsensors[sensors_saved].timestamp = timeClient.getEpochTime();
-    sensors_saved++;
+  if ( new_staff_found == false ) {
+    StaffInfos[staffs_saved].id = ID;
+    StaffInfos[staffs_saved].name = type;//msg1.category;
+    StaffInfos[staffs_saved].shift = maxMov;
+    StaffInfos[staffs_saved].type = maxStat;
+    StaffInfos[staffs_saved].inactivity = inacT;
+    StaffInfos[staffs_saved].distanceActive = distanceSta;
+    StaffInfos[staffs_saved].energyActive = energySta;
+    StaffInfos[staffs_saved].distanceMoving = distanceMov;
+    StaffInfos[staffs_saved].energyMoving = energyMov;
+    StaffInfos[staffs_saved].rssi = RSSI;
+    //StaffInfos[staffs_saved].timestamp = time(nullptr);
+    // StaffInfos[staffs_saved].timestamp = timeClient.getEpochTime();
+    staffs_saved++;
     Serial.println("New sensor");
   }
 }
@@ -1154,7 +1421,7 @@ void OnDataRecvs(const uint8_t * mac_addr, const uint8_t *incomingData, int len)
     // Serial.println(mainGatewayDatas.energyActive);
     Serial.print(" | reading Id  = ");
     Serial.println(mainGatewayDatas.distanceMoving);
-    if(mainData.id == 0){meshNet.previousMillisPing = meshNet.currentMillisPing;mainData.maxStation = mainGatewayDatas.distanceMoving;}
+    if(mainData.id == 0){meshNet.previousMillisPing = meshNet.currentMillisPing;mainData.type = mainGatewayDatas.distanceMoving;}
     else{
       saveSensorDatas(mainData.rssi, mainData.id,type,8 ,8 ,8,mainData.distanceActive, mainData.energyActive, mainData.distanceMoving,0);
     }
@@ -1252,11 +1519,11 @@ void VoltUpdate() {
 
 void WifiSetup(){
    WiFi.mode(WIFI_STA);
-    WiFi.begin(gateway_settings.ssid, gateway_settings.password);
+    WiFi.begin(main_settings.ssid, main_settings.password);
     WiFi.setAutoReconnect(true);
     WiFi.persistent(true);
     byte tries = 1;
-    if ( String(gateway_settings.ssid) != "" && String(gateway_settings.password) != ""  ) {
+    if ( String(main_settings.ssid) != "" && String(main_settings.password) != ""  ) {
       while (WiFi.status() != WL_CONNECTED ) {
         if (tries++ > 9 ) {
           startAP(false);
@@ -1316,16 +1583,16 @@ void setup() {
 
   EEPROM.begin(sizeof(struct settings) );
   delay(2000);
-  EEPROM.get( 0, gateway_settings );
-  if ( String(gateway_settings.pversion) != PRGM_VERSION )
-    memset(&gateway_settings, 0, sizeof(settings));
-  unsigned long serial_baud = gateway_settings.baud;
+  EEPROM.get( 0, main_settings );
+  if ( String(main_settings.pversion) != PRGM_VERSION )
+    memset(&main_settings, 0, sizeof(settings));
+  unsigned long serial_baud = main_settings.baud;
   Serial.println("Serial Baud:" + String(serial_baud));
   if ( !(serial_baud > 0 && serial_baud < 115200) ) serial_baud = 115200;
   Serial.begin( serial_baud );
   delay(500);
-  Mode = gateway_settings.Mode;
-  if( Mode > 2){Mode = MESH_mode;EEPROM.put(0, gateway_settings);EEPROM.commit();}
+  Mode = main_settings.Mode;
+  if( Mode > 2){Mode = MESH_mode;EEPROM.put(0, main_settings);EEPROM.commit();}
 #ifndef MASTER
   RADAR.setup();
 #endif//MASTER
@@ -1535,8 +1802,8 @@ typedef struct struct_message {
     uint8_t energyMoving;
     uint16_t  distanceActive;
     uint8_t energyActive;
-    uint16_t  maxStation;
-    uint16_t  maxMoving;
+    uint16_t  type;
+    uint16_t  shift;
     uint16_t  inactivity;
 } struct_message;
 
@@ -1644,7 +1911,7 @@ if (!!window.EventSource) {
 </html>)rawliteral";
 
 void readDataToSend() {
-  outgoingSetpoints.msgType = DATA;
+  outgoingSetpoints.name = DATA;
   outgoingSetpoints.id = 0;
   outgoingSetpoints.distanceActive = random(0, 40);
   outgoingSetpoints.energyActive = random(0, 100);
@@ -1725,14 +1992,14 @@ void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) 
   
   case PAIRING:                            // the message is a pairing request 
     memcpy(&MSpairingData, incomingData, sizeof(MSpairingData));
-    Serial.println(MSpairingData.msgType);
+    Serial.println(MSpairingData.name);
     Serial.println(MSpairingData.id);
     Serial.print("Pairing request from: ");
     printMAC(mac_addr);
     Serial.println();
     Serial.println(MSpairingData.channel);
     if (MSpairingData.id > 0) {     // do not replay to server itself
-      if (MSpairingData.msgType == PAIRING) { 
+      if (MSpairingData.name == PAIRING) { 
         MSpairingData.id = 0;       // 0 is server
         // Server is in AP_STA mode: peers need to send data to server soft AP MAC address 
         WiFi.softAPmacAddress(MSpairingData.macAddr);   
@@ -1845,8 +2112,8 @@ typedef struct struct_message {
     uint8_t energyMoving;
     uint16_t  distanceActive;
     uint8_t energyActive;
-    uint16_t  maxStation;
-    uint16_t  maxMoving;
+    uint16_t  type;
+    uint16_t  shift;
     uint16_t  inactivity;
 } struct_message;
 
@@ -2041,7 +2308,7 @@ PairingStatus autoPairing(){
     esp_now_register_recv_cb(OnDataRecv);
   
     // set pairing data to send to the server
-    pairingData.msgType = PAIRING;
+    pairingData.name = PAIRING;
     pairingData.id = BOARD_ID;     
     pairingData.channel = channel;
 
@@ -2073,20 +2340,20 @@ PairingStatus autoPairing(){
   }
   return pairingStatus;
 }  
-bool            new_sensor_found;
-int             sensors_saved;
+bool            new_staff_found;
+int             staffs_saved;
 
 void saveSensorData(byte RSSI,byte ID,byte type,byte maxMov,byte maxStat,byte inacT,byte distanceSta,byte energySta,byte distanceMov,byte energyMov) {//Save Web
     //  bat = EncodeRespond(BatL,BatH);
     //  bat12 = EncodeRespond(Bat12L,Bat12H);
     //  int ID = EncodeRespond(IDl,IDh);
-  new_sensor_found = false;
+  new_staff_found = false;
   
-  for (int i = 0; i < sensors_saved; i++) {
+  for (int i = 0; i < staffs_saved; i++) {
     if (sensors[i].id > 0){
-       sensors[i].msgType = type;
-      sensors[i].maxMoving = maxMov;
-      sensors[i].maxStation = maxStat;
+       sensors[i].name = type;
+      sensors[i].shift = maxMov;
+      sensors[i].type = maxStat;
       sensors[i].inactivity = inacT;
       sensors[i].distanceActive = distanceSta;
       sensors[i].energyActive = energySta;
@@ -2095,24 +2362,24 @@ void saveSensorData(byte RSSI,byte ID,byte type,byte maxMov,byte maxStat,byte in
       sensors[i].rssi = RSSI;
       //sensors[i].timestamp = time(nullptr);
       // sensors[i].timestamp = timeClient.getEpochTime();
-      new_sensor_found = true;
+      new_staff_found = true;
     }
   }
 
-  if ( new_sensor_found == false ) {
-    sensors[sensors_saved].id = ID;
-    sensors[sensors_saved].msgType = type;//msg1.category;
-    sensors[sensors_saved].maxMoving = maxMov;
-    sensors[sensors_saved].maxStation = maxStat;
-    sensors[sensors_saved].inactivity = inacT;
-    sensors[sensors_saved].distanceActive = distanceSta;
-    sensors[sensors_saved].energyActive = energySta;
-    sensors[sensors_saved].distanceMoving = distanceMov;
-    sensors[sensors_saved].energyMoving = energyMov;
-    sensors[sensors_saved].rssi = RSSI;
-    //sensors[sensors_saved].timestamp = time(nullptr);
-    // sensors[sensors_saved].timestamp = timeClient.getEpochTime();
-    sensors_saved++;
+  if ( new_staff_found == false ) {
+    sensors[staffs_saved].id = ID;
+    sensors[staffs_saved].name = type;//msg1.category;
+    sensors[staffs_saved].shift = maxMov;
+    sensors[staffs_saved].type = maxStat;
+    sensors[staffs_saved].inactivity = inacT;
+    sensors[staffs_saved].distanceActive = distanceSta;
+    sensors[staffs_saved].energyActive = energySta;
+    sensors[staffs_saved].distanceMoving = distanceMov;
+    sensors[staffs_saved].energyMoving = energyMov;
+    sensors[staffs_saved].rssi = RSSI;
+    //sensors[staffs_saved].timestamp = time(nullptr);
+    // sensors[staffs_saved].timestamp = timeClient.getEpochTime();
+    staffs_saved++;
     Serial.println("New sensor");
   }
 }
@@ -2149,22 +2416,22 @@ void loop() {
     // Serial.println("Paired!!!"  );
       //Set values to send
       if(step > 0) {
-        if(sensors_saved  > 1) {
+        if(staffs_saved  > 1) {
             interval = 1000;
             mainData.rssi = sensors[step-1].rssi;
-            mainData.msgType = sensors[step-1].msgType;
+            mainData.name = sensors[step-1].name;
             mainData.id = sensors[step-1].id;
             mainData.distanceActive = sensors[step-1].distanceActive;
             mainData.energyActive = sensors[step-1].energyActive;
             mainData.distanceMoving = sensors[step-1].distanceMoving;
             esp_err_t result = esp_now_send(serverAddress, (uint8_t *) &mainData, sizeof(mainData));
-          step++;if(step == sensors_saved){step = -1;}
+          step++;if(step == staffs_saved){step = -1;}
         }
         else{step = 0;}
       }
       if(step == 0){
         mainData.rssi = rssi_display;
-        mainData.msgType = DATA;
+        mainData.name = DATA;
         mainData.id = BOARD_ID;
         mainData.distanceActive = readDHTTemperature();
         mainData.energyActive = readDHTHumidity();

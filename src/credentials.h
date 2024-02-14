@@ -1,5 +1,5 @@
 // Comment out for NO access controls
-#define AccessControl
+// #define AccessControl
 
 // Set your server access username and password here (OPTIONAL:)
 const char* http_username = "admin";

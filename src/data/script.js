@@ -1,4 +1,4 @@
-var gateway = `ws://192.168.1.105/ws`;
+var gateway = `ws://4.3.2.1/ws`;
 var websocket;
 // Init web socket when the page loads
 window.addEventListener('load', onload);

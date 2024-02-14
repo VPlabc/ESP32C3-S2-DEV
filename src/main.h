@@ -30,35 +30,8 @@
 
 
 
-typedef struct MainRadarDatas
-{
-    uint8_t msgType;
-    uint8_t rssi;
-    uint8_t id;
-    uint8_t state;
-    uint16_t distanceMoving;
-    uint8_t energyMoving;
-    uint16_t  distanceActive;
-    uint8_t energyActive;
-    uint16_t  maxStation;
-    uint16_t  maxMoving;
-    uint16_t  inactivity;
-    float  VMT;
-    float  AMT;
-    float  VMain;
-    float  AMain;
-} MainRadarDatas;
-typedef struct MainGatewayDatas
-{
-    uint8_t msgType;
-    uint8_t rssi;
-    uint8_t id;
-    uint8_t state;
-    uint16_t distanceMoving;
-    uint8_t energyMoving;
-    uint16_t  distanceActive;
-    uint8_t energyActive;
-} MainGatewayDatas;
+
+
 // typedef struct struct_pairing {       // new structure for pairing
 //     uint8_t msgType;
 //     uint8_t id;
