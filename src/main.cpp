@@ -114,6 +114,7 @@ String CaLam = "";
 String Loai = "";
 String KhoiLuong = "";
 String ThoiGian = "";
+String Series = "";
 //Define two Serial devices mapped to the two internal UARTs
 HardwareSerial MySerial0(0);
 HardwareSerial MySerial1(1);
@@ -138,7 +139,7 @@ EscPos ESCPOS(&MySerial0);
 // PRINT 1\n";
 
   String shiftLabel[] = {"A","B","C","D"};
-  String typeLabel[] = {"Nước","Đông","Dây"};
+  String typeLabel[] = {"Nưoc","Dong","Day"};
   String keyword[] = {"","","","","","","",".:", "L:" , "e:", "E:", "V:", "T "};
   String label[] = {"   No.","   Ca:","   Loai:","   TG:","   NV:"," KL:"};
   //0 series / 1 LK / 2 TG / 3 LINE / 4 NV / 5 PRINT
@@ -184,7 +185,7 @@ void initWebSocket();
 void notifyClients(String sensorReadings);
 void printScript(String DataForm);
 void notifyClientsLed();
-
+void printScript(String Series,String Name,String KLuong,String LoaiMu, String Cacao,String Date);
 void setup() {
   ////////////////////////  SERIAL SETUP //////////////////////////
   Serial.begin(9600);  
@@ -324,6 +325,7 @@ void loop() {
   for(int j = 0; j < strCount; j++) { DataIns += dataStr[j] + '\n';}
   KhoiLuong = checkLine(DataIns, "L:");
   ThoiGian = checkLine(DataIns, "e:");
+  Series = checkLine(DataIns, ".:");
   CheckScript(dataStr[10]);
   for(int j = 0; j < strCount; j++) {dataStr[j] = "";}
   // LOG("DataIn\n" + DataIns);
@@ -380,16 +382,23 @@ void CheckScript(String Str){
       ReportFile = String(member) + "," + NVname + "," + shiftLabel[shift] + "," + typeLabel[type] + "," + ThoiGian + "," + KhoiLuong + "\n";
       LOGLN("ReportFile: " + ReportFile);
       appendFile("/report.csv", string_char(ReportFile));
+      printScript(Series, NVname,  KhoiLuong, typeLabel[type], shiftLabel[shift], ThoiGian);
 }
 
-void printScript(String DataForms){
+void printScript(String Series,String Name,String KLuong,String LoaiMu, String Cacao,String Date){
   #ifdef ESC_CMD
-  for(int j = 0; j < DataForms.length(); j++) {
-    // checkLine(DataForms,' ');
-    if(DataForms[j] == '\n') {dataStr[strCount++]=dataIn; dataIn ="";}
-    else{dataIn += DataForms[j];}
-  }
-
+  // for(int j = 0; j < DataForms.length(); j++) {
+  //   // checkLine(DataForms,' ');
+  //   if(DataForms[j] == '\n') {dataStr[strCount++]=dataIn; dataIn ="";}
+  //   else{dataIn += DataForms[j];}
+  // }
+  // String keyword[] = {"","","","","","","",".:", "L:" , "e:", "E:", "V:", "T "};
+      dataPrint[7] = Series;
+      dataPrint[8] = KLuong;
+      dataPrint[9] = Date;
+      dataPrint[10] = Cacao;
+      dataPrint[11] = Name;
+      dataPrint[12] = LoaiMu;
       // ESCPOS.margin(1,50);
       ESCPOS.set58mm();
       ESCPOS.characterSet(3,35);
@@ -402,9 +411,11 @@ void printScript(String DataForms){
   for(int j = 7; j < strCount; j++) {
     if(size[j-7] == 2) {ESCPOS.effectDoubleHeight();ESCPOS.effectDoubleWidth();}
     if(bold[j-7] == 1) {ESCPOS.effectBold();}  
-      LOGLN("Edit:"+String(edit[j-7]) + " |size:" + String(size[j-7]) + " |bold:" + String(bold[j-7]));
-      LOGLN(dataPrint[edit[j-7]+7] + " | " + keyword[edit[j-7]+7]);  
-      LOGLN(dataStr[edit[j-7]+7]);
+      // LOGLN("Edit:"+String(edit[j-7]) + " |size:" + String(size[j-7]) + " |bold:" + String(bold[j-7]));
+      // LOGLN(dataPrint[edit[j-7]+7] + " | " + keyword[edit[j-7]+7]);  
+      // LOGLN(dataStr[edit[j-7]+7]);
+      LOG(label[j-7]);
+      LOGLN(dataPrint[edit[j-7]+7]);
       ESCPOS.print(label[j-7]);
       ESCPOS.println(dataPrint[edit[j-7]+7]);
 
@@ -575,7 +586,7 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
           msg += buff ;
         }
       }
-      Serial.printf("%s\n",msg.c_str());
+      // Serial.printf("%s\n",msg.c_str());
 
   DynamicJsonDocument doc(1024);
   String input = msg.c_str();
