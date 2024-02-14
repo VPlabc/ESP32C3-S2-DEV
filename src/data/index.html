@@ -198,6 +198,10 @@
                 }
                 // console.log("key: " + keys[0] + " | obj[keys[0]]" + myObj[keys[0]]);
                 if(myObj["IN"] == "staff"){
+
+                const Shift = ["A","B","C","D"];
+                const Type = ["Nước","Dây","Đông"];
+
                     console.log(event.data);
                     console.log(myObj[keys[1]]);
                     // console.log(myObj[keys[1]][0]);
@@ -217,7 +221,7 @@
                     <tbody>\
                     ";
                     for(var i = 0 ; i < myObj["Data"].length ; i++) {
-                    data += "    <tr><td>"+myObj["Data"][i]["id"]+"</td><th scope=\"row\">"+myObj["Data"][i]["name"]+"</th><td>"+myObj["Data"][i]["shift"]+"</td><td>"+myObj["Data"][i]["type"]+"</td>";
+                    data += "    <tr><td>"+myObj["Data"][i]["id"]+"</td><th scope=\"row\">"+myObj["Data"][i]["name"]+"</th><td>"+Shift[myObj["Data"][i]["shift"]]+"</td><td>"+Type[myObj["Data"][i]["type"]]+"</td>";
                     data += "</tr>"
                     }
                     data += "</tbody></table>";

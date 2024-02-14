@@ -137,6 +137,8 @@ EscPos ESCPOS(&MySerial0);
 // TEXT 19,133,\"3\",0,1,1,\"NV:Name\"\n\
 // PRINT 1\n";
 
+  String shiftLabel[] = {"A","B","C","D"};
+  String typeLabel[] = {"Nước","Đông","Dây"};
   String keyword[] = {"","","","","","","",".:", "L:" , "e:", "E:", "V:", "T "};
   String label[] = {"   No.","   Ca:","   Loai:","   TG:","   NV:"," KL:"};
   //0 series / 1 LK / 2 TG / 3 LINE / 4 NV / 5 PRINT
@@ -375,7 +377,7 @@ void CheckScript(String Str){
       JsonObject obj = doc.as<JsonObject>();
       String NVname = obj["Data"][member-1]["name"];
       // LOGLN("Nhân viên: " + NVname);
-      ReportFile = String(member) + "," + NVname + "," + String(shift) + "," + String(type) + "," + ThoiGian + "," + KhoiLuong + "\n";
+      ReportFile = String(member) + "," + NVname + "," + shiftLabel[shift] + "," + typeLabel[type] + "," + ThoiGian + "," + KhoiLuong + "\n";
       LOGLN("ReportFile: " + ReportFile);
       appendFile("/report.csv", string_char(ReportFile));
 }
@@ -418,46 +420,13 @@ void printScript(String DataForms){
 }
 // Get Sensor Readings and return JSON object
 String getSensorReadings(){
-  //  webpage += "<table class='center'>";
-  // webpage += "<tr><th>Last Upload</th><th>Last Download/Stream</th><th>Units</th></tr>";
-  // webpage += "<tr><td>" + ConvBinUnits(uploadsize, 1) + "</td><td>" + ConvBinUnits(downloadsize, 1) + "</td><td>File Size</td></tr> ";
-  // webpage += "<tr><td>" + ConvBinUnits((float)uploadsize / uploadtime * 1024.0, 1) + "/Sec</td>";
-  // webpage += "<td>" + ConvBinUnits((float)downloadsize / downloadtime * 1024.0, 1) + "/Sec</td><td>Transfer Rate</td></tr>";
-  // webpage += "</table>";
-  // webpage += "<h4>Filing System</h4>";
-  // webpage += "<table class='center'>";
-  // webpage += "<tr><th>Total Space</th><th>Used Space</th><th>Free Space</th><th>Number of Files</th></tr>";
-  // webpage += "<tr><td>" + ConvBinUnits(FS.totalBytes(), 1) + "</td>";
-  // webpage += "<td>" + ConvBinUnits(FS.usedBytes(), 1) + "</td>";
-  // webpage += "<td>" + ConvBinUnits(FS.totalBytes() - FS.usedBytes(), 1) + "</td>";
-  // webpage += "<td>" + (numfiles == 0 ? "Pending Dir or Empty" : String(numfiles)) + "</td></tr>";
-  // webpage += "</table>";
-  // webpage += "<h4>CPU Information</h4>";
-  // webpage += "<table class='center'>";
-  // webpage += "<tr><th>Parameter</th><th>Value</th></tr>";
-  // webpage += "<tr><td>Number of Cores</td><td>" + String(chip_info.cores) + "</td></tr>";
-  // webpage += "<tr><td>Chip revision</td><td>" + String(chip_info.revision) + "</td></tr>";
-  // webpage += "<tr><td>Internal or External Flash Memory</td><td>" + String(((chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "Embedded" : "External")) + "</td></tr>";
-  // webpage += "<tr><td>Flash Memory Size</td><td>" + String((spi_flash_get_chip_size() / (1024 * 1024))) + " MB</td></tr>";
-  // webpage += "<tr><td>Current Free RAM</td><td>" + ConvBinUnits(ESP.getFreeHeap(), 1) + "</td></tr>";
-  // webpage += "</table>";
-  // webpage += "<h4>Network Information</h4>";
-  // webpage += "<table class='center'>";
-  // webpage += "<tr><th>Parameter</th><th>Value</th></tr>";
-  // webpage += "<tr><td>LAN IP Address</td><td>"              + String(WiFi.localIP().toString()) + "</td></tr>";
-  // webpage += "<tr><td>Network Adapter MAC Address</td><td>" + String(WiFi.BSSIDstr()) + "</td></tr>";
-  // webpage += "<tr><td>WiFi SSID</td><td>"                   + String(WiFi.SSID()) + "</td></tr>";
-  // webpage += "<tr><td>WiFi RSSI</td><td>"                   + String(WiFi.RSSI()) + " dB</td></tr>";
-  // webpage += "<tr><td>WiFi Channel</td><td>"                + String(WiFi.channel()) + "</td></tr>";
-  // webpage += "<tr><td>WiFi Encryption Type</td><td>"        + String(EncryptionType(WiFi.encryptionType(0))) + "</td></tr>";
-  // webpage += "</table> ";
   if (printStatus == 0) {               // if status is 0 then we are good
     readings["Printer State"] = "printer online";   // debug that we are online
   } else {
     readings["Printer State"] = "printer offline ";  // debug that we are offline
     // Serial.println(printStatus);        // debug the returned status code  
   } 
-  KhoiLuong = String(random(10,100)) + "Kg";
+  // KhoiLuong = String(random(10,100)) + "Kg";
   readings["khoiluong"] = KhoiLuong;
   readings["Total Space"] = ConvBinUnits(FS.totalBytes(), 1);
   readings["Used Space"] = ConvBinUnits(FS.usedBytes(), 1);
