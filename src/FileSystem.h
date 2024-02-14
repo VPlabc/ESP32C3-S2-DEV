@@ -278,7 +278,7 @@ void handleFileUpload(AsyncWebServerRequest *request, const String& filename, si
   if (request->_tempFile) {
     if (len) {
       request->_tempFile.write(data, len); // Chunked data
-      Serial.println("Transferred : " + String(len) + " Bytes");
+    //   Serial.println("Transferred : " + String(len) + " Bytes");
     }
     if (final) {
       uploadsize = request->_tempFile.size();
@@ -729,7 +729,7 @@ void readMemoryFromFile(int saved, bool storeFound , uint8_t * sensors, size_t d
 }
 
 void writeFile(const char * path, const char * message){
-  Serial.printf("Writing file: %s\r\n", path);
+//   Serial.printf("Writing file: %s\r\n", path);
 
   File file = SPIFFS.open(path, FILE_WRITE);
   if(!file){
@@ -737,7 +737,23 @@ void writeFile(const char * path, const char * message){
     return;
   }
   if(file.print(message)){
-    Serial.println("- file written");
+    // Serial.println("- file written");
+  } else {
+    Serial.println("- write failed");
+  }
+  file.close();
+}
+
+void appendFile(const char * path, const char * message){
+//   Serial.printf("Writing file: %s\r\n", path);
+
+  File file = SPIFFS.open(path, FILE_APPEND);
+  if(!file){
+    Serial.println("- failed to open file for writing");
+    return;
+  }
+  if(file.print(message)){
+    // Serial.println("- file written");
   } else {
     Serial.println("- write failed");
   }
@@ -745,7 +761,7 @@ void writeFile(const char * path, const char * message){
 }
 
 String readFile(const char * path){
-  Serial.printf("Reading file: %s\r\n", path);
+//   Serial.printf("Reading file: %s\r\n", path);
     String str_out = ""; 
   File file = SPIFFS.open(path);
   if(!file || file.isDirectory()){
@@ -753,7 +769,7 @@ String readFile(const char * path){
     return str_out;
   }
 
-  Serial.println("- read from file:");
+//   Serial.println("- read from file:");
   while(file.available()){
     // Serial.write(file.read());
     str_out += (char)file.read();

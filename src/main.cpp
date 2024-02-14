@@ -113,6 +113,7 @@ String NameNV = "";
 String CaLam = "";
 String Loai = "";
 String KhoiLuong = "";
+String ThoiGian = "";
 //Define two Serial devices mapped to the two internal UARTs
 HardwareSerial MySerial0(0);
 HardwareSerial MySerial1(1);
@@ -319,9 +320,13 @@ void loop() {
     }
   if(count == 13){count = 0;
   for(int j = 0; j < strCount; j++) { DataIns += dataStr[j] + '\n';}
+  KhoiLuong = checkLine(DataIns, "L:");
+  ThoiGian = checkLine(DataIns, "e:");
   CheckScript(dataStr[10]);
   for(int j = 0; j < strCount; j++) {dataStr[j] = "";}
   // LOG("DataIn\n" + DataIns);
+  // LOGLN("Thoi Gian: " + ThoiGian);
+  // LOGLN("Khoi Luong: " + KhoiLuong);
   strCount = 0;
   // CheckScript(DataIn);
   DataIns = "";
@@ -343,16 +348,22 @@ void loop() {
 
       //0 series / 1 KL / 2 TG / 3 LINE / 4 NV / 5 PRINT
 void CheckScript(String Str){
-  LOGLN(Str);
+      String ReportFile = "";
+  if (!FS.exists("/report.csv")) {
+      ReportFile = "ID,Tên Công Nhân,Phiên Cạo,Loại Mủ,Ngày giờ,Khối Lượng\n";
+      LOGLN("ReportFile: " + ReportFile);
+      appendFile("/report.csv", string_char(ReportFile));
+  }
+  // LOGLN(Str);
   String code = checkLine(Str,"E:");
-  LOGLN(code);
+  // LOGLN(code);
 
   int member = (int(code[0]-48))*10 + int(code[1]-48);
-  LOGLN("member ID: " + String(member));
+  // LOGLN("member ID: " + String(member));
   int shift = int(code[2]-48);
-  LOGLN("shift: " + String(shift));
+  // LOGLN("shift: " + String(shift));
   int type = int(code[3]-48);
-  LOGLN("type: " + String(type));
+  // LOGLN("type: " + String(type));
       String filename = "/data.txt";String str_out;
       File file = FS.open(filename, "r"); // Now read FS to see if file exists
       while(file.available()){
@@ -363,7 +374,10 @@ void CheckScript(String Str){
       deserializeJson(doc, str_out);
       JsonObject obj = doc.as<JsonObject>();
       String NVname = obj["Data"][member-1]["name"];
-      LOGLN("Nhân viên: " + NVname);
+      // LOGLN("Nhân viên: " + NVname);
+      ReportFile = String(member) + "," + NVname + "," + String(shift) + "," + String(type) + "," + ThoiGian + "," + KhoiLuong + "\n";
+      LOGLN("ReportFile: " + ReportFile);
+      appendFile("/report.csv", string_char(ReportFile));
 }
 
 void printScript(String DataForms){
@@ -440,7 +454,7 @@ String getSensorReadings(){
   if (printStatus == 0) {               // if status is 0 then we are good
     readings["Printer State"] = "printer online";   // debug that we are online
   } else {
-    readings["Printer State"] = "printer offline: ";  // debug that we are offline
+    readings["Printer State"] = "printer offline ";  // debug that we are offline
     // Serial.println(printStatus);        // debug the returned status code  
   } 
   KhoiLuong = String(random(10,100)) + "Kg";
@@ -522,7 +536,7 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
     if (strcmp((char*)data, "toggle") == 0) {
       // printScript(NameNV,CaLam,Loai,KhoiLuong);
     }
-      LOGLN((char*)data);
+      // LOGLN((char*)data);
       // LOGLN("NV" + strcmp((char*)data, "NV"));
       // LOGLN("CA" + strcmp((char*)data, "CA"));
       // LOGLN("LOAI" + strcmp((char*)data, "LOAI"));
@@ -617,9 +631,9 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
   }
 
   if(obj["IN"] == "load") {  
-    LOGLN("load");
+    // LOGLN("load");
     String Str_read = readFile("/data.txt");
-    LOGLN(Str_read);
+    // LOGLN(Str_read);
     notifyClients(Str_read);
 
   }

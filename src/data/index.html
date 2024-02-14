@@ -86,7 +86,7 @@
         <div class="content">
             <div class="card-grid">
                 <div class="card">
-                    <p class="card-title"> ID NV </p><p id="id"></p>
+                    <p class="card-title"> ID NV </p><p id="idStaff"></p>
                     <p class="card-title"> Tên NV</p>
                     <input type="text" class="reading" id="name" />
                     <p class="card-title"> Ca làm việc</p>
@@ -128,10 +128,12 @@
                     <button onclick='listfile()' class='button'>refresh</button>
                 </div>
                 <div id="listFile"></div>
+                <div id="listStaff"></div>
         </div>
         <script>
             var gateway = 'ws://192.168.1.106/ws';
             var websocket;
+            var StaffQuanlity = 0;
             // Init web socket when the page loads
             window.addEventListener('load', onload);
 
@@ -160,7 +162,7 @@
             function onOpen(event) {
                 console.log('Connection opened');
                 getReadings();
-                listfile();
+                listfile();loaddata();
             }
 
             function onClose(event) {
@@ -199,9 +201,29 @@
                     console.log(event.data);
                     console.log(myObj[keys[1]]);
                     // console.log(myObj[keys[1]][0]);
-                    var data = myObj[keys[1]];
+                    // var data = myObj[keys[1]];
 
                     document.getElementById("datainput").value = event.data;
+                    var data = "<table class=\"table caption-top\">\
+                    <caption>List Staff</caption>\
+                    <thead>\
+                        <tr>\
+                        <th scope=\"col\">ID</th>\
+                        <th scope=\"col\">Name</th>\
+                        <th scope=\"col\">Shift</th>\
+                        <th scope=\"col\">Type</th>\
+                        </tr>\
+                    </thead>\
+                    <tbody>\
+                    ";
+                    for(var i = 0 ; i < myObj["Data"].length ; i++) {
+                    data += "    <tr><td>"+myObj["Data"][i]["id"]+"</td><th scope=\"row\">"+myObj["Data"][i]["name"]+"</th><td>"+myObj["Data"][i]["shift"]+"</td><td>"+myObj["Data"][i]["type"]+"</td>";
+                    data += "</tr>"
+                    }
+                    data += "</tbody></table>";
+                    document.getElementById("listStaff").innerHTML = data;
+                    document.getElementById("idStaff").innerHTML = myObj["Data"].length + 1;
+                    StaffQuanlity = myObj["Data"].length + 1;
                 }
 
                 if(myObj["IN"] == "file"){
@@ -226,9 +248,8 @@
                     <tbody>\
                     ";
                     for(var i = 0 ; i < myObj["Data"].length ; i++) {
-                    data += "    <tr><td>"+myObj["Data"][i]["type"]+"</td><th scope=\"row\">"+myObj["Data"][i]["name"]+"</th><td>"+myObj["Data"][i]["size"]+"</td>";
+                    data += "    <tr><td>"+myObj["Data"][i]["type"]+"</td><th scope=\"row\"><a href=\"downloadhandler~/"+myObj["Data"][i]["name"]+"\"><p>"+myObj["Data"][i]["name"]+"</p></a></th><td>"+myObj["Data"][i]["size"]+"</td>";
                     data += "<td><button onclick=\"FileDel('"+myObj["Data"][i]["name"]+"')\">delete</button>";
-                    data += "<button onclick=\"FileDown('"+myObj["Data"][i]["name"]+"')\">download</button>";
                     data += "<button onclick=\"FileView('"+myObj["Data"][i]["name"]+"')\">view</button></td>";
                     data += "</tr>"
                     }
@@ -273,6 +294,7 @@
                 var dataout = "{'IN':'load'}";
                 console.log(dataout);
                 websocket.send(dataout);
+                
             }
             function listfile(){
                 var dataout = "{'IN':'listfile'}";
@@ -283,10 +305,14 @@
                 var a = document.getElementById("name").value;
                 var b = document.getElementById("ca").value;
                 var c = document.getElementById("loai").value;
-                var d = document.getElementById("id").value;
+                var d = StaffQuanlity;
                 var dataout = "{'IN':'ok','ID':"+d+",'NV':'"+a+"','CA':'"+b+"','LOAI':'"+c+"'}";
                 console.log(dataout);
                 websocket.send(dataout);
+                var stringStaff = document.getElementById("datainput").value;
+                stringStaff = stringStaff.replace("}]", "},{\"id\":"+d+",\"name\":\""+a+"\",\"shift\":"+b+",\"type\":"+c+"}]");
+                document.getElementById("datainput").value = stringStaff;
+                savedata();
             }
             function toggle(){
                 websocket.send('toggle');
@@ -301,14 +327,7 @@
                 console.log(str);
                 websocket.send(str);
             }
-            function FileDown(e){
-                var link = e;
-                console.log(link);
-                var xhttp = new XMLHttpRequest();
-                xhttp.open("/downloadhandler?filename="+link, true);
-                xhttp.send();
-            }
-            
+            // <button><a href="downloadhandler~/dataview.html">dataview.html</a></button>
         </script>
     </body>
 </html>
