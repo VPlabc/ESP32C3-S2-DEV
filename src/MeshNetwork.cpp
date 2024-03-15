@@ -3,29 +3,29 @@ MeshNet meshNetwork;
 #include "main.h"
 main MeshMain;
 
-int channel = 1;
+int channelMes = 1;
  
 // simulate temperature and humidity data
-float t = 0;
-float h = 0;
+float t1 = 0;
+float h1 = 0;
 
-unsigned long currentMillis = millis();
-unsigned long previousMillis = 0;   // Stores last time temperature was published
+unsigned long currentMillisMes = millis();
+unsigned long previousMillisMes = 0;   // Stores last time temperature was published
 
-unsigned int readingId = 0;   
+unsigned int readingIdMes = 0;   
 
 
  struct_message myData;  // data to send
- struct_message inData;  // data received
+ struct_message inDataMes;  // data received
 //  structpairing pairingData;
- MessageType messageType;
+ MessageType messageTypeMes ;
 //  struct_setting messageSetting;
 
 uint8_t defserverAddress[] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
-PairingStatus pairingStatus = NOT_PAIRED;
+PairingStatus pairingStatusMes  = NOT_PAIRED;
 void MeshNet::SetParameter(byte Status){
-if(Status == PAIR_REQUEST){pairingStatus = PAIR_REQUEST;}
-if(Status == PAIR_PAIRED){pairingStatus = PAIR_PAIRED;}
+if(Status == PAIR_REQUEST){pairingStatusMes  = PAIR_REQUEST;}
+if(Status == PAIR_PAIRED){pairingStatusMes  = PAIR_PAIRED;}
 }
 
 
@@ -34,16 +34,16 @@ void MeshNet::setInterval(long time){
 }
 void MeshNet::getParameters(){
 DataTrans datTrans;
-dataTrans.currentMillis = currentMillis; 
-dataTrans.previousMillis = previousMillis; 
+dataTrans.currentMillis = currentMillisMes; 
+dataTrans.previousMillis = previousMillisMes; 
 //  datTrans.currentMillisPing = currentMillisPing;
-//  datTrans.previousMillisPing = previousMillisPing;
+//  datTrans.previousMillisMesPing = previousMillisMesPing;
 //  datTrans.rssi_display = rssi_display;
 //  meshNet.interval = interval;
 //  dataTrans.sensors_saved = sensors_saved;
 //  for(int i = 0; i < 6 ; i++){dataTrans.defserverAddress[i] = defserverAddress[i];}
 }
-// PairingStatus autoPairing();
+// pairingStatusMes  autoPairing();
 
 void promiscuous_rx_cbs(void *buf, wifi_promiscuous_pkt_type_t type) {
   // All espnow traffic uses action frames which are a subtype of the mgmnt frames so filter out everything else.
@@ -60,15 +60,15 @@ void promiscuous_rx_cbs(void *buf, wifi_promiscuous_pkt_type_t type) {
 
 // void saveSensorDatas(byte RSSI,byte ID,byte type,byte maxMov,byte maxStat,byte inacT,byte distanceSta,byte energySta,byte distanceMov,byte energyMov);
 // simulate temperature reading
-float readDHTTemperature() {
-  t = random(0,40);
-  return t;
+float readDHTTemperature_Mesh() {
+  t1 = random(0,40);
+  return t1;
 }
 
 // simulate humidity reading
-float readDHTHumidity() {
-  h = random(0,100);
-  return h;
+float readDHTHumidity_Mesh() {
+  h1 = random(0,100);
+  return h1;
 }
 
 void MeshNet::addPeer(const uint8_t * mac_addr, uint8_t chan){
@@ -93,28 +93,28 @@ void MeshNet::printMAC(const uint8_t * mac_addr){
   Serial.print(macStr);
 }
 
-byte resent = 0;bool onceOnsent = true;
+byte resentMes = 0;bool onceOnsent = true;
 void OnDataSents(const uint8_t *mac_addr, esp_now_send_status_t status) {
   Serial.print("\r\nLast Packet Send Status:\t");
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
   if(status == ESP_NOW_SEND_FAIL){
     meshNet.interval = 1000;
-    resent++;if(resent > 5){onceOnsent = true;
-    resent = 0;Serial.println("fail 5 times");
+    resentMes++;if(resentMes > 5){onceOnsent = true;
+    resentMes = 0;Serial.println("fail 5 times");
     meshNet.SetParameter(PAIR_REQUEST);
     }
-  }else{resent = 0;if(onceOnsent){meshNet.interval = 10000;onceOnsent = false;}}
+  }else{resentMes = 0;if(onceOnsent){meshNet.interval = 10000;onceOnsent = false;}}
 }
 
-byte repair = 0;
+byte repairMes = 0;
 PairingStatus MeshNet::autoPairing(){
-  switch(pairingStatus) {
+  switch(pairingStatusMes ) {
     case PAIR_REQUEST:
-    Serial.print("Pairing request on channel "  );
-    Serial.println(channel);
+    Serial.print("Pairing request on channelMes "  );
+    Serial.println(channelMes);
 
-    // set WiFi channel   
-    ESP_ERROR_CHECK(esp_wifi_set_channel(channel,  WIFI_SECOND_CHAN_NONE));
+    // set WiFi channelMes   
+    ESP_ERROR_CHECK(esp_wifi_set_channel(channelMes,  WIFI_SECOND_CHAN_NONE));
     if (esp_now_init() != ESP_OK) {
       Serial.println("Error initializing ESP-NOW");
     }
@@ -127,27 +127,27 @@ PairingStatus MeshNet::autoPairing(){
     // set pairing data to send to the server
     structpairing.msgType = PAIRING;
     structpairing.id = BOARD_ID;     
-    structpairing.channel = channel;
+    structpairing.channel = channelMes;
 
     // add peer and send request
-    addPeer(defserverAddress, channel);
+    addPeer(defserverAddress, channelMes);
     esp_now_send(defserverAddress, (uint8_t *) &structpairing, sizeof(structpairing));
-    previousMillis = millis();
-    pairingStatus = PAIR_REQUESTED;
+    previousMillisMes = millis();
+    pairingStatusMes  = PAIR_REQUESTED;
     break;
 
     case PAIR_REQUESTED:
     // time out to allow receiving response from server
-    currentMillis = millis();
-    if(currentMillis - previousMillis > 250) {
-      previousMillis = currentMillis;
+    currentMillisMes = millis();
+    if(currentMillisMes - previousMillisMes > 250) {
+      previousMillisMes = currentMillisMes;
       // time out expired,  try next channel
-      channel ++;digitalWrite(LED, !(digitalRead(LED)));
-      if (channel > MAX_CHANNEL){
-         channel = 1;
-         repair++;if(repair > 10){ESP.restart();}
+      channelMes ++;digitalWrite(LED, !(digitalRead(LED)));
+      if (channelMes > MAX_CHANNEL){
+         channelMes = 1;
+         repairMes++;if(repairMes > 10){ESP.restart();}
       }   
-      pairingStatus = PAIR_REQUEST;
+      pairingStatusMes  = PAIR_REQUEST;
     }
     break;
 
@@ -155,7 +155,7 @@ PairingStatus MeshNet::autoPairing(){
       // nothing to do here 
     break;
   }
-  return pairingStatus;
+  return pairingStatusMes ;
 }  
 
 
@@ -169,50 +169,50 @@ void MeshNet::setup() {
   WiFi.disconnect();
 
 
-  #ifdef SAVE_CHANNEL 
+  #ifdef SAVE_channelMes 
     EEPROM.begin(10);
-    lastChannel = EEPROM.read(0);
+    lastchannelMes = EEPROM.read(0);
     Serial.println(lastChannel);
-    if (lastChannel >= 1 && lastChannel <= MAX_CHANNEL) {
-      channel = lastChannel; 
+    if (lastchannelMes >= 1 && lastchannelMes <= MAX_CHANNEL) {
+      channelMes = lastChannel; 
     }
     Serial.println(channel);
   #endif  
-  pairingStatus = PAIR_REQUEST;
+  pairingStatusMes  = PAIR_REQUEST;
 }  
-byte step = 0;
+byte stepMes = 0;
 void MeshNet::loop() {
   if (autoPairing() == PAIR_PAIRED) {
-    unsigned long currentMillis = millis();
-    if (currentMillis - previousMillis >= interval) {
+    unsigned long currentMillisMes = millis();
+    if (currentMillisMes - previousMillisMes >= interval) {
       // Save the last time a new reading was published
-      previousMillis = currentMillis;
+      previousMillisMes = currentMillisMes;
       digitalWrite(LED, HIGH);
     // Serial.println("Paired!!!"  );
       //Set values to send
-      if(step > 0) {
+      if(stepMes > 0) {
         // if(sensors_saved  > 1) {
         //     interval = 1000;
-        //     myData.rssi = sensors[step-1].rssi;
-        //     myData.msgType = sensors[step-1].msgType;
-        //     myData.id = sensors[step-1].id;
-        //     myData.distanceActive = sensors[step-1].distanceActive;
-        //     myData.energyActive = sensors[step-1].energyActive;
-        //     myData.distanceMoving = sensors[step-1].distanceMoving;
+        //     myData.rssi = sensors[stepMes-1].rssi;
+        //     myData.msgType = sensors[stepMes-1].msgType;
+        //     myData.id = sensors[stepMes-1].id;
+        //     myData.distanceActive = sensors[stepMes-1].distanceActive;
+        //     myData.energyActive = sensors[stepMes-1].energyActive;
+        //     myData.distanceMoving = sensors[stepMes-1].distanceMoving;
         //     esp_err_t result = esp_now_send(defserverAddress, (uint8_t *) &myData, sizeof(myData));
-        //   step++;if(step == sensors_saved){step = -1;}
+        //   stepMes++;if(stepMes == sensors_saved){stepMes = -1;}
         // }
         // else{
-            step = 0;
+            stepMes = 0;
             // }
       }
-      if(step == 0){
+      if(stepMes == 0){
         myData.rssi = rssi_display;
         myData.msgType = DATA;
         myData.id = BOARD_ID;
-        myData.distanceActive = readDHTTemperature();
-        myData.energyActive = readDHTHumidity();
-        myData.distanceMoving = readingId++;
+        myData.distanceActive = readDHTTemperature_Mesh();
+        myData.energyActive = readDHTHumidity_Mesh();
+        myData.distanceMoving = readingIdMes++;
         esp_err_t result = esp_now_send(defserverAddress, (uint8_t *) &myData, sizeof(myData));
         ////////////////////////////////////////////////////////////////////////////////////////////////
         meshNet.currentMillisPing = millis();
@@ -220,9 +220,9 @@ void MeshNet::loop() {
           // previousMillisPing = currentMillisPing;
           Serial.println("disconnect to gateway");
         }
-        step = 1;
+        stepMes = 1;
       }
-      if(step < 0){step = 0;}
+      if(stepMes < 0){stepMes = 0;}
       ////////////////////////////////////////////////////////////////////////////////////////////////
     }
   }

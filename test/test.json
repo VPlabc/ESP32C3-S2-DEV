@@ -1,1 +1,1 @@
-{'IN':'staff','Data':[{"id":1,"name":"vinhphat","shift":2,"type":4},{"id":2,"name":"DucTri","shift":1,"type":3}]}
+{"IN":"file","Data":[{"type":"File","name":"data.txt","size":"300 B"},{"type":"File","name":"report.csv","size":"2.9 KB"},{"type":"File","name":"report2024_02_15.csv","size":"992 B"},{"type":"File","name":"report2024_02_17.csv","size":"587 B"},{"type":"File","name":"report0112","size":"97 B"},{"type":"File","name":"report2024_02_19.csv","size":"371 B"},{"type":"File","name":"index.html","size":"24.6 KB"}]}

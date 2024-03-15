@@ -679,7 +679,7 @@ String HTML_Header() {
   page += "<a href='/delete'>Delete</a>";
   page += "<a href='/rename'>Rename</a>";
   page += "<a href='/system'>Status</a>";
-  //page += "<a href='/format'>Format FS</a>";
+  page += "<a href='/format'>Format FS</a>";
   page += "<a href='/newpage'>New Page</a>";
   page += "<a href='/logout'>[Log-out]</a>";
   page += "</div>";

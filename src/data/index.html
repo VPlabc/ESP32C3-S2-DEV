@@ -131,7 +131,8 @@
                 <div id="listStaff"></div>
         </div>
         <script>
-            var gateway = 'ws://192.168.1.106/ws';
+            // var gateway = 'ws://192.168.1.105/ws';
+            var gateway = 'ws://' + window.location.hostname +'/ws';
             var websocket;
             var StaffQuanlity = 0;
             // Init web socket when the page loads
@@ -158,11 +159,16 @@
                 websocket.onmessage = onMessage;
             }
 
+            function initDatat() {
+                console.log('init data...');
+                getReadings();
+                listfile();loaddata();
+            }
+
             // When websocket is established, call the getReadings() function
             function onOpen(event) {
                 console.log('Connection opened');
-                getReadings();
-                listfile();loaddata();
+                setTimeout(initDatat, 2000);
             }
 
             function onClose(event) {
@@ -252,10 +258,15 @@
                     <tbody>\
                     ";
                     for(var i = 0 ; i < myObj["Data"].length ; i++) {
-                    data += "    <tr><td>"+myObj["Data"][i]["type"]+"</td><th scope=\"row\"><a href=\"downloadhandler~/"+myObj["Data"][i]["name"]+"\"><p>"+myObj["Data"][i]["name"]+"</p></a></th><td>"+myObj["Data"][i]["size"]+"</td>";
+                if(myObj["Data"][i]["name"] == "data.txt" || myObj["Data"][i]["name"] == "index.html"){}
+                else{
+                    // var dataout =  "{\"IN\":\"download\",\"filename\":\"" + myObj["Data"][i]["name"]+ "\"}" ;
+                    // data += "<tr><td>"+myObj["Data"][i]["type"]+"</td><th scope=\"row\"><a href=\"command?plain=" + encodeURIComponent(dataout)+"\"><p>"+myObj["Data"][i]["name"]+"</p></a></th><td>"+myObj["Data"][i]["size"]+"</td>";
+          
+                    data += "<tr><td>"+myObj["Data"][i]["type"]+"</td><th scope=\"row\"><a href=\"downloadhandler~/"+myObj["Data"][i]["name"]+"\"><p>"+myObj["Data"][i]["name"]+"</p></a></th><td>"+myObj["Data"][i]["size"]+"</td>";
                     data += "<td><button onclick=\"FileDel('"+myObj["Data"][i]["name"]+"')\">delete</button>";
                     data += "<button onclick=\"FileView('"+myObj["Data"][i]["name"]+"')\">view</button></td>";
-                    data += "</tr>"
+                    data += "</tr>"}
                     }
                     data += "</tbody></table>";
                     data += "<div><p>\
@@ -287,18 +298,55 @@
             // function initButtonList() {
             //     document.getElementById('buttonList').addEventListener('click', listfile);
             // }
-
+            function getLooklineCmdSuccess(e) { 
+                // if (!process_looklineCmd_answer(e)) return getLooklineCmdfailed(406, translate_text_item("Wrong data")), void console.log(e); 
+            }
+            function getLooklineCmdfailed(e, t) {
+                //  console.log("Error " + e + " :" + t), document.getElementById("lookline_loader").style.display = 'none', document.getElementById("lookline_status").style.display = "block", document.getElementById("lookline_status").innerHTML = translate_text_item("Failed:") + e + " " + t, document.getElementById("lookline_refresh_btn").style.display = "block" 
+            }
             function savedata(){
                 var data = document.getElementById("datainput").value;
                 var dataout =  data ;
                 console.log(dataout);
-                websocket.send(dataout);
+                // websocket.send(dataout);
+                SendGetHttp("/command?plain=" + encodeURIComponent(dataout), getLooklineCmdSuccess, getLooklineCmdfailed);
+            }
+            function SendGetHttp(command, success, faild){
+                var xhttp = new XMLHttpRequest(); 
+                var message;
+                xhttp.onreadystatechange = function() {
+                    if (this.readyState == 4 && this.status == 200) {
+                    message = this.responseText;
+                    // update some HTML data
+                    }
+                }
+                xhttp.open("GET", command, false);
+                xhttp.send();
             }
             function loaddata(){
-                var dataout = "{'IN':'load'}";
-                console.log(dataout);
-                websocket.send(dataout);
+                // var dataout = "{'IN':'load'}";
+                // console.log(dataout);
+                // websocket.send(dataout);
+                // function ButtonPress0() {
+                var xhttp = new XMLHttpRequest(); 
+                var message;
+                // if you want to handle an immediate reply (like status from the ESP
+                // handling of the button press use this code
+                // since this button status from the ESP is in the main XML code
+                // we don't need this
+                // remember that if you want immediate processing feedbac you must send it
+                // in the ESP handling function and here
+                /*
+                */
+                xhttp.onreadystatechange = function() {
+                    if (this.readyState == 4 && this.status == 200) {
+                    message = this.responseText;
+                    // update some HTML data
+                    }
+                }
                 
+                xhttp.open("PUT", "BUTTON_0", false);
+                xhttp.send();
             }
             function listfile(){
                 var dataout = "{'IN':'listfile'}";
@@ -319,17 +367,21 @@
                 savedata();
             }
             function toggle(){
-                websocket.send('toggle');
+                // websocket.send('toggle');
             }
             function FileView(e){
                 var str ="{'IN':'streamFile','file':'"+e+"'}";
                 console.log(str);
-                websocket.send(str);
+                // websocket.send(str);
+                SendGetHttp("/command?plain=" + encodeURIComponent(str), getLooklineCmdSuccess, getLooklineCmdfailed);
+
             }
             function FileDel(e){
                 var str ="{'IN':'deleteFile','file':'"+e+"'}";
                 console.log(str);
-                websocket.send(str);
+                // websocket.send(str);
+                SendGetHttp("/command?plain=" + encodeURIComponent(str), getLooklineCmdSuccess, getLooklineCmdfailed);
+
             }
             // <button><a href="downloadhandler~/dataview.html">dataview.html</a></button>
         </script>
