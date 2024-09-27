@@ -8,14 +8,15 @@
 // #define Rad
 // #define Sendmessage
 // #define BLE
-// #define Websocket
+#define Websocket
 // #define ESPNOW_Test
 // #define Master
 // #define Slave
 // #define autoPair
-#define Printer
+// #define Printer
 #define SAVE_CHANNEL
 // #define IOTDEVICES
+#define LED_Controller
 
 #ifdef Printer
 #define ESC_CMD
@@ -2090,3 +2091,113 @@ void loop() {
 }
 #endif//Slave
 #endif//autoPair
+
+
+#ifdef LED_Controller
+#include "Arduino.h"
+#include <WiFi.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include "SPIFFS.h"
+#include <Arduino_JSON.h>
+#include <Ds1302.h>
+
+#define PIN_ENA 41
+#define PIN_CLK 39
+#define PIN_DAT 40
+// DS1302 RTC instance
+Ds1302 rtc(PIN_ENA, PIN_CLK, PIN_DAT);
+
+
+const static char* WeekDays[] =
+{
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday"
+};
+
+
+const byte LED_Pin[16] = {1,2,3,4,5,6,7,8,9,10,33,34,35,36,37,38};
+bool State = false;
+byte counterPin = 0;
+
+const byte rxPin = 44;//10;
+const byte txPin = 43;//9;
+// const byte rxPin1 = 5;
+// const byte txPin1 = 46;
+
+HardwareSerial MySerial0(0);
+// HardwareSerial MySerial1(1);
+
+const int printerBaudrate = 115200;  // or 19200 usually
+
+
+void setup(){
+      // And configure MySerial1 on pins RX=D9, TX=D10
+    for(byte i = 0 ; i < 16; i++)pinMode(LED_Pin[i], OUTPUT);
+
+    MySerial0.begin(printerBaudrate, SERIAL_8N1, rxPin, txPin);
+    MySerial0.println("MySerial0");
+
+        // initialize the RTC
+    rtc.init();
+
+    // test if clock is halted and set a date-time (see example 2) to start it
+    if (rtc.isHalted())
+    {
+        MySerial0.println("RTC is halted. Setting time...");
+
+        Ds1302::DateTime dt = {
+            .year = 24,
+            .month = Ds1302::MONTH_SEP,
+            .day = 27,
+            .hour = 1,
+            .minute = 20,
+            .second = 30,
+            .dow = Ds1302::DOW_FRI
+        };
+
+        rtc.setDateTime(&dt);
+    }
+}
+void loop(){
+ // get the current time
+    Ds1302::DateTime now;
+    rtc.getDateTime(&now);
+
+    static uint8_t last_second = 0;
+    if (last_second != now.second)
+    {
+        last_second = now.second;
+
+        MySerial0.print("20");
+        MySerial0.print(now.year);    // 00-99
+        MySerial0.print('-');
+        if (now.month < 10) MySerial0.print('0');
+        MySerial0.print(now.month);   // 01-12
+        MySerial0.print('-');
+        if (now.day < 10) MySerial0.print('0');
+        MySerial0.print(now.day);     // 01-31
+        MySerial0.print(' ');
+        MySerial0.print(WeekDays[now.dow - 1]); // 1-7
+        MySerial0.print(' ');
+        if (now.hour < 10) MySerial0.print('0');
+        MySerial0.print(now.hour);    // 00-23
+        MySerial0.print(':');
+        if (now.minute < 10) MySerial0.print('0');
+        MySerial0.print(now.minute);  // 00-59
+        MySerial0.print(':');
+        if (now.second < 10) MySerial0.print('0');
+        MySerial0.print(now.second);  // 00-59
+        MySerial0.println();
+    }
+    digitalWrite(LED_Pin[counterPin], State);
+    delay(100);State = !State;
+    digitalWrite(LED_Pin[counterPin], State);
+    delay(100);State = !State;counterPin++;if(counterPin > 15)counterPin = 0;
+}
+#endif//LED_Controller

@@ -1,11 +1,11 @@
-var gateway = `ws://192.168.1.16/ws`;
+var gateway = `ws://192.168.1.4/ws`;
 var websocket;
 // Init web socket when the page loads
 window.addEventListener('load', onload);
 
 function onload(event) {
     initWebSocket();
-    initButton();
+    // initButton();
     initButtonCheck();
 }
 
@@ -57,21 +57,3 @@ function onMessage(event) {
     }
 }
 
- 
-  function initButton() {
-    document.getElementById('button').addEventListener('click', toggle);
-  }
-  function initButtonCheck() {
-    document.getElementById('buttoncheck').addEventListener('click', checkdata);
-  }
-  function checkdata(){
-    var a = document.getElementById("name").value;
-    var b = document.getElementById("ca").value;
-    var c = document.getElementById("loai").value;
-    var dataout = "{'NV':'"+a+"','CA':'"+b+"','LOAI':'"+c+"'}";
-    console.log(dataout);
-    // websocket.send(dataout);
-  }
-  function toggle(){
-    websocket.send('toggle');
-  }

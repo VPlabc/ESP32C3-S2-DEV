@@ -1,0 +1,223 @@
+<script>
+    // Khai báo biến global
+    var gateway = `ws://192.168.1.4/ws`;
+    var websocket;
+    
+    // Khai báo biến global cho dữ liệu nhân viên, sản phẩm và khối lượng
+    var NVDB = "Phát Duy,";
+    var SPDB = "SP1,SP2,SP3,SP4,";
+    var KLDB = "1 kg,";
+    
+    // Khởi tạo web socket khi trang web được tải
+    window.addEventListener('load', function (event) {
+        initWebSocket();
+        initButtonCheck();
+    });
+    
+    // Gửi yêu cầu đọc dữ liệu khi mở kết nối WebSocket
+    function onOpen(event) {
+        console.log('Connection opened');
+        getReadings();
+    }
+    
+    // Xử lý khi kết nối WebSocket bị đóng
+    function onClose(event) {
+        console.log('Connection closed');
+        setTimeout(initWebSocket, 2000);
+    }
+    
+    // Xử lý khi nhận dữ liệu từ ESP32
+    function onMessage(event) {
+        var myObj = JSON.parse(event.data);
+        var keys = Object.keys(myObj);
+    
+        // Hiển thị dữ liệu lên các phần tử HTML
+        for (var i = 0; i < keys.length; i++) {
+            var key = keys[i];
+            document.getElementById(key).innerHTML = myObj[key];
+        }
+    
+        // Xử lý trạng thái (ví dụ: ON/OFF)
+        if (keys[2] == "State") {
+            var state = myObj[keys[2]] == "1" ? "ON" : "OFF";
+            // document.getElementById('state').innerHTML = state;
+        }
+    }
+    
+    // Khởi tạo WebSocket
+    function initWebSocket() {
+        console.log('Trying to open a WebSocket connection…');
+        websocket = new WebSocket(gateway);
+        websocket.onopen = onOpen;
+        websocket.onclose = onClose;
+        websocket.onmessage = onMessage;
+    }
+    
+    // Gửi yêu cầu đọc dữ liệu
+    function getReadings() {
+        websocket.send("getReadings");
+    }
+    
+    // Hiển thị modal khi nhấn nút
+    $(document).ready(function () {
+        function openSettingModal(modalId) {
+            $(modalId).modal('show');
+        }
+    
+        $('#settingBtnNV').click(function () {
+            openSettingModal('#settingModalNV');
+        });
+    
+        $('#settingBtnSP').click(function () {
+            openSettingModal('#settingModalSP');
+        });
+    
+        $('#settingBtnKL').click(function () {
+            openSettingModal('#settingModalKL');
+        });
+    });
+    
+    // Lưu và xóa dữ liệu trên thanh input trong modal
+    function saveAndClearInput(inputId) {
+        var inputValue = document.getElementById(inputId).value;
+        save(inputId, inputValue);
+        document.getElementById(inputId).value = "";
+    }
+    
+    // Cập nhật dữ liệu từ thanh input
+    function save(inputId, data) {
+        if (data.trim() === "") {
+            return;
+        }
+        if (inputId === 'databaseName') {
+            NVDB += data + ',';
+        } else if (inputId === 'databaseSanPham') {
+            SPDB += data + ',';
+        } else if (inputId === 'databaseKhoiLuong') {
+            KLDB += data + ',';
+        }
+        getDataBase(NV);
+        createCards(NVDB.split(','), SPDB.split(','));
+    }
+    
+    // Lấy dữ liệu từ cơ sở dữ liệu
+    function getDataBase(type) {
+        if (type === NV) {
+            DBget = NVDB.split(',');
+            buildHTMLNameList("table_name", "Tên nhân viên");
+        } else if (type === SP) {
+            DBget = SPDB.split(',');
+            buildHTMLNameList("table_sanpham", "Tên sản phẩm");
+        } else if (type === KL) {
+            DBget = KLDB.split(',');
+            buildHTMLNameList("table_khoiluong", "Khối lượng");
+        }
+    }
+    
+    // Tạo table HTML
+    function buildHTMLNameList(tableId, columnHeader) {
+        var t = `<thead><tr><th style='width: 30%; text-align: center;'>STT (ID)</th><th>${columnHeader}</th></tr></thead>`;
+        for (var a = 0; a < DBget.length - 1; a++) {
+            t += "<tr>";
+            t += `<td style='vertical-align: middle; width: 30%; text-align: center;'>${formatID(a + 1)}</td>`;
+            t += "<td style='vertical-align: middle; width: 70%;'>";
+            t += "<table><tr><td>" + DBget[a] + "</td></tr></table>";
+            t += "</td>";
+            t += "</tr>\n";
+        }
+    
+        if (t.length > 0) {
+            document.getElementById(tableId).innerHTML = t;
+        } else {
+            console.log("Error in HTML build: Empty content");
+        }
+    }
+    
+    // Tạo card HTML
+    function createCards(names, products) {
+        var cardContainer = document.getElementById("card-container");
+    
+        cardContainer.innerHTML = ""; // Xóa tất cả các card hiện tại
+        for (var a = 0; a < names.length - 1; a++) {
+            var card = document.createElement("div");
+            card.className = "card";
+    
+            card.innerHTML = `
+              <div class="card-header row bg-warning" style="color: black;">
+                <div class="col-12 text-center" style="font-size: 1.3rem;">ID: ${formatID(a + 1)}<span id="ID"></span></div>
+                <div class="col-12 text-center" class="reading" id="name" style="font-size: 1.3rem;">Tên: ${names[a]}<span id="name"></span></div>
+              </div>
+              <div class="card-body row">
+                <div class="card-body01">
+                  <div class="col" style="margin: 0 0 10px 0;">Ca:</div>
+                  <div class="col" style="margin: 0 0 10px 0;">Sản phẩm:</div>
+                  <div class="col">Khối Lượng:</div>
+                </div>
+                <div class="card-body02">
+                  <div class="col" style="margin: 0 0 10px 0;">
+                    <select id="ca${a}" style="width: 100%; text-align: center;">
+                        <option>1</option>
+                        <option>2</option>
+                        <option>3</option>
+                    </select>
+                  </div>
+                  <div class="col" style="margin: 0 0 10px 0;">
+                    <select style="width: 100%; text-align: center;" id="loai${a}">
+                      ${generateProductOptions(products)}
+                    </select>
+                  </div>
+                  <p class="reading"><span id="khoiluong"></span></p>
+                </div>
+              </div>
+              <div class="card-button" style="text-align: center; padding-bottom: 5%;">
+                <button type="button" class="btn btn-warning" id="buttoncheck${a}" style="font-size: 1.3rem; width: 70%;">
+                  <svg class="bi" width="24" height="24" style="margin-right: 10px"> <use xlink:href="#print_icon"></use></svg>In ra
+                </button>
+              </div>
+            `;
+    
+            cardContainer.appendChild(card);
+    
+            // Đăng ký sự kiện click cho buttoncheck tương ứng với mỗi card
+            document.getElementById(`buttoncheck${a}`).addEventListener('click', function (idx) {
+                return function () {
+                    checkdata(idx);
+                };
+            }(a));
+        }
+    }
+    
+    // Tạo các option cho select sản phẩm
+    function generateProductOptions(products) {
+        var optionsHTML = "";
+        for (var i = 0; i < products.length - 1; i++) {
+            optionsHTML += `<option value="${products[i]}">${products[i]}</option>`;
+        }
+        return optionsHTML;
+    }
+    
+    // Hardcode giá trị từ 0 đến 100 vào thẻ select của KL
+    var khoiLuongSelect = document.getElementById('khoiluong');
+    for (var i = 0; i <= 100; i++) {
+        var option = document.createElement('option');
+        option.value = i + ' kg';
+        option.text = i + ' kg';
+        khoiLuongSelect.add(option);
+    }
+    
+    // Khởi tạo sự kiện click cho buttoncheck
+    function initButtonCheck() {
+        document.getElementById('buttoncheck').addEventListener('click', checkdata);
+    }
+    
+    // Gửi dữ liệu khi nhấn buttoncheck
+    function checkdata() {
+        var a = NVDB.split(',')[0];
+        var b = document.getElementById("ca").value;
+        var c = document.getElementById("loai").value;
+        var dataout = `{'IN':'ok','NV':'${a}','CA':'${b}','LOAI':'${c}'}`;
+        console.log(dataout);
+        websocket.send(dataout);
+    }
+    </script>
+    
