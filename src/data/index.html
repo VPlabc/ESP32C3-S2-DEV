@@ -20,6 +20,8 @@
                     <p class="card-title"> Loại hàng</p>
                     <input type="text" class="reading" id="loai" />
                     <p><button id="buttoncheck" class="button">Check</button></p>
+                    <div ><textarea id="LEDdataSave"></textarea></div>
+                    <p><button id="buttonsave" class="button">Save</button></p>
                 </div>
                 <div class="card">
                     <p class="card-title"> khoi luong</p>
@@ -38,7 +40,7 @@
             </div>
           </div>
         <script >
-            var gateway = `ws://192.168.1.4/ws`;
+            var gateway = `ws://4.3.2.1/ws`;
 var websocket;
 // Init web socket when the page loads
 window.addEventListener('load', onload);
@@ -103,14 +105,23 @@ function onMessage(event) {
   }
   function initButtonCheck() {
     document.getElementById('buttoncheck').addEventListener('click', checkdata);
+    // buttonsave
+    document.getElementById('buttonsave').addEventListener('click', savedata);
   }
   function checkdata(){
     var a = document.getElementById("name").value;
     var b = document.getElementById("ca").value;
     var c = document.getElementById("loai").value;
-    var dataout = "{'NV':'"+a+"','CA':'"+b+"','LOAI':'"+c+"'}";
+    var dataout = "{\"CMD\":\"Try\",\"Data\":[["+a+","+b+","+c+"]]}";
+    document.getElementById("LEDdataSave").value = dataout;
     console.log(dataout);
-    // websocket.send(dataout);
+    websocket.send(dataout);
+  }
+  
+  function savedata(){
+    var a = document.getElementById("LEDdataSave").value;
+    console.log(a);
+    websocket.send(a);
   }
   function toggle(){
     websocket.send('toggle');
