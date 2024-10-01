@@ -196,8 +196,10 @@ byte CountStep = 0;
 void effect_1(int effectcount,int speed) {
 MySerial0.println("Effect 1");
   for (int i = 1; i <= effectcount; i++) {CountStep = 0;
-    while((boiso * CountStep + 1) < number_of_74hc595s * 8){
+    while(CountStep < number_of_74hc595s * 8){
+      
       for (int i = (boiso * CountStep) + CountStep; i < boiso * CountStep + 1; i++) {
+        digitalWrite(latchPin, LOW);
         registersWrite(i, HIGH, 1*speed);
         delay(40*speed);
       }
