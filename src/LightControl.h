@@ -30,6 +30,7 @@ void hieuung7();
 void hieuung3();
 void hieuung2();
 void hieuung1();
+void Push595();
 
 void Light_loop(String dataLed);
 void Light_setup();

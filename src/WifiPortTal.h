@@ -15,7 +15,7 @@ ESPAsyncHTTPUpdateServer updateServer;
 
 // Set your server access username and password here (OPTIONAL:)
 const char* http_username = "admin";
-const char* http_password = "admin";
+const char* http_password = "27xuanquynh@";
 
 // Set a server logical name, this gets translated to the physical IP address e.g. http://192.168.0.22
 // NOTE: ONLY works if your browser supports this function
@@ -32,22 +32,23 @@ const char* ServerName    = "fileserver";
 #include "esp_bt.h"            // Built-in
 #define  FSys SPIFFS             // In preparation for the introduction of LITTLFS see https://github.com/lorol/LITTLEFS replace SPIFFS with LITTLEFS
 
-#define rxPin 44
-#define txPin 43
+#include <AsyncElegantOTA.h>
+
+
 // Pre reading on the fundamentals of captive portals https://textslashplain.com/2022/06/24/captive-portals/
 
-const char *APssid = "captive";  // FYI The SSID can't have a space in it.
+String APssid = "LED_Controller";  // FYI The SSID can't have a space in it.
 // const char * password = "12345678"; //Atleast 8 chars
-const char *APpassword = NULL;  // no password
+const char *APpassword = "i-soft@123";  // no password
 
 #define MAX_CLIENTS 4 // ESP32 supports up to 10 but I have not tested it yet
 #define WIFI_CHANNEL 6  // 2.4ghz channel 6 https://en.wikipedia.org/wiki/List_of_WLAN_channels#2.4_GHz_(802.11b/g/n/ax)
 
-const IPAddress localIP(4, 3, 2, 1);       // the IP address the web server, Samsung requires the IP to be in public space
-const IPAddress gatewayIP(4, 3, 2, 1);       // IP address of the network should be the same as the local IP for captive portals
+const IPAddress localIP(192, 168, 4, 1);       // the IP address the web server, Samsung requires the IP to be in public space
+const IPAddress gatewayIP(192, 168, 4, 0);       // IP address of the network should be the same as the local IP for captive portals
 const IPAddress subnetMask(255, 255, 255, 0);  // no need to change: https://avinetworks.com/glossary/subnet-mask/
 
-const String localIPURL = "http://4.3.2.1";  // a string version of the local IP with http, used for redirecting clients to your webpage
+const String localIPURL = "http://192.168.4.1";  // a string version of the local IP with http, used for redirecting clients to your webpage
 
 const char index_html[] PROGMEM = R"=====(
 )=====";
@@ -58,6 +59,8 @@ AsyncWebServer server(80);
 //################  VERSION  ###########################################
 String    Version = "1.0";   // Programme version, see change log at end
 //################ VARIABLES ###########################################
+
+
 
 typedef struct
 {
@@ -124,7 +127,6 @@ void startSoftAccessPoint(const char *APssid, const char *APpassword, const IPAd
 
   // Configure the soft access point with a specific IP and subnet mask
   WiFi.softAPConfig(localIP, gatewayIP, subnetMask);
-
   // Start the soft access point with the given ssid, password, channel, max number of clients
   WiFi.softAP(APssid, APpassword, WIFI_CHANNEL, 0, MAX_CLIENTS);
 
@@ -174,12 +176,15 @@ void setUpWebserver(AsyncWebServer &server, const IPAddress &localIP) {
 
 //    response->addHeader("Cache-Control", "public,max-age=31536000");  // save this file to cache for 1 year (unless you refresh)
 //    request->send(response);
-//    MySerial.println("Served Basic HTML Page");
+//    DB_LN("Served Basic HTML Page");
 //  });
 
+
+  AsyncElegantOTA.begin(&server);    // Start AsyncElegantOTA
+  
   // ##################### HOMEPAGE HANDLER ###########################
   server.on("/file", HTTP_GET, [](AsyncWebServerRequest * request) {
-    MySerial.println("Home Page...");
+    DB_LN("Home Page...");
 #ifdef AccessControl
     if (!request->authenticate(http_username, http_password)) // Comment out to remove need for login username & password
       return request->requestAuthentication();                // Comment out to remove need for login username & password
@@ -196,14 +201,14 @@ void setUpWebserver(AsyncWebServer &server, const IPAddress &localIP) {
 
   // ##################### DOWNLOAD HANDLER ##########################
   server.on("/download", HTTP_GET, [](AsyncWebServerRequest * request) {
-    MySerial.println("Downloading file...");
+    DB_LN("Downloading file...");
     Select_File_For_Function("[DOWNLOAD]", "downloadhandler"); // Build webpage ready for display
     request->send(200, "text/html", webpage);
   });
 
   // ##################### UPLOAD HANDLERS ###########################
   server.on("/upload", HTTP_GET, [](AsyncWebServerRequest * request) {
-    MySerial.println("Uploading file...");
+    DB_LN("Uploading file...");
     UploadFileSelect(); // Build webpage ready for display
     request->send(200, "text/html", webpage);
   });
@@ -217,16 +222,16 @@ void setUpWebserver(AsyncWebServer &server, const IPAddress &localIP) {
 
   // Set handler for '/handleformat'
   server.on("/handleformat", HTTP_GET, [](AsyncWebServerRequest * request) {
-    MySerial.println("Processing Format Request of File System...");
+    DB_LN("Processing Format Request of File System...");
     if (request->getParam("format")->value() == "YES") {
-      MySerial.print("Starting to Format Filing System...");
+      DB("Starting to Format Filing System...");
       FSys.end();
       bool formatted = FSys.format();
       if (formatted) {
-        MySerial.println(" Successful Filing System Format...");
+        DB_LN(" Successful Filing System Format...");
       }
       else         {
-        MySerial.println(" Formatting Failed...");
+        DB_LN(" Formatting Failed...");
       }
     }
     request->redirect("/dir");
@@ -234,35 +239,35 @@ void setUpWebserver(AsyncWebServer &server, const IPAddress &localIP) {
 
   // ##################### STREAM HANDLER ############################
   server.on("/stream", HTTP_GET, [](AsyncWebServerRequest * request) {
-    MySerial.println("Streaming file...");
+    DB_LN("Streaming file...");
     Select_File_For_Function("[STREAM]", "streamhandler"); // Build webpage ready for display
     request->send(200, "text/html", webpage);
   });
 
   // ##################### RENAME HANDLER ############################
   server.on("/rename", HTTP_GET, [](AsyncWebServerRequest * request) {
-    MySerial.println("Renaming file...");
+    DB_LN("Renaming file...");
     File_Rename(); // Build webpage ready for display
     request->send(200, "text/html", webpage);
   });
 
   // ##################### DIR HANDLER ###############################
   server.on("/dir", HTTP_GET, [](AsyncWebServerRequest * request) {
-    MySerial.println("File Directory...");
+    DB_LN("File Directory...");
     Dir(request); // Build webpage ready for display
     request->send(200, "text/html", webpage);
   });
 
   // ##################### DELETE HANDLER ############################
   server.on("/delete", HTTP_GET, [](AsyncWebServerRequest * request) {
-    MySerial.println("Deleting file...");
+    DB_LN("Deleting file...");
     Select_File_For_Function("[DELETE]", "deletehandler"); // Build webpage ready for display
     request->send(200, "text/html", webpage);
   });
 
   // ##################### FORMAT HANDLER ############################
   server.on("/format", HTTP_GET, [](AsyncWebServerRequest * request) {
-    MySerial.println("Request to Format File System...");
+    DB_LN("Request to Format File System...");
     Format(); // Build webpage ready for display
     request->send(200, "text/html", webpage);
   });
@@ -290,48 +295,65 @@ void setUpWebserver(AsyncWebServer &server, const IPAddress &localIP) {
   // the catch all
   server.onNotFound([](AsyncWebServerRequest *request) {
     request->redirect(localIPURL);
-    MySerial.print("onnotfound ");
-    MySerial.print(request->host());  // This gives some insight into whatever was being requested on the serial monitor
-    MySerial.print(" ");
-    MySerial.print(request->url());
-    MySerial.print(" sent redirect to " + localIPURL + "\n");
+    DB("onnotfound ");
+    DB(request->host());  // This gives some insight into whatever was being requested on the serial monitor
+    DB(" ");
+    DB(request->url());
+    DB(" sent redirect to " + localIPURL + "\n");
   });
+
+  
+
 }
 
 
-
-void Portal_setup() {
+bool WifiMode = false;
+String mac2String(byte ar[]) {
+  String s;
+  for (byte i = 0; i < 6; ++i)
+  {
+    char buf[3];
+    sprintf(buf, "%02X", ar[i]); // J-M-L: slight modification, added the 0 in the format for padding 
+    s += buf;
+    // if (i < 5) s += ':';
+  }
+  return s;
+}
+void Portal_setup(bool Mode) {
       // Set WiFi to station mode and disconnect from an AP if it was previously connected
-//   WiFi.mode(WIFI_STA);
-//   WiFi.disconnect();
-//   delay(100);
+if(Mode){
+  WifiMode = Mode;
+   WiFi.mode(WIFI_STA);
+   WiFi.disconnect();
+   delay(100);
 
-//    MySerial.println("Setup done");
-//    MySerial.println("scan start");
+//    DB_LN("Setup done");
+//    DB_LN("scan start");
 
 //   // WiFi.scanNetworks will return the number of networks found
-//   int n = WiFi.scanNetworks();
-//  MySerial.println("scan done");
-//   if (n == 0) {
-//      MySerial.println("no networks found");
-//   } else {
-//    MySerial.print(n);
-//    MySerial.println(" networks found");
-//     for (int i = 0; i < n; ++i) {
-//       // Print SSID and RSSI for each network found
-//      MySerial.print(i + 1);
-//      MySerial.print(": ");
-//      MySerial.print(WiFi.SSID(i));
-//      MySerial.print(" (");
-//      MySerial.print(WiFi.RSSI(i));
-//      MySerial.print(")");
-//      MySerial.println((WiFi.encryptionType(i) == WIFI_AUTH_OPEN)?" ":"*");
-//       delay(10);
-//     }
-//   }
-//  MySerial.println("");
-
-
+   int n = WiFi.scanNetworks();
+  DB_LN("scan done");
+   if (n == 0) {
+      DB_LN("no networks found");
+   } else {
+    DB(n);
+    DB_LN(" networks found");
+     for (int i = 0; i < n; ++i) {
+       // Print SSID and RSSI for each network found
+      DB(i + 1);
+      DB(": ");
+      DB(WiFi.SSID(i));
+      DB(" (");
+      DB(WiFi.RSSI(i));
+      DB(")");
+      DB_LN((WiFi.encryptionType(i) == WIFI_AUTH_OPEN)?" ":"*");
+       delay(10);
+     }
+   }
+  DB_LN("");
+  initWiFi();
+}
+else{
   // Set the transmit buffer size for the Serial object and start it with a baud rate of 115200.
   // MySerial.setTxBufferSize(1024);
   // MySerial.begin(115200);
@@ -339,28 +361,46 @@ void Portal_setup() {
   // while (!Serial)
   //  ;
   // Print a welcome message to the Serial port.
-  MySerial.println("\n\nCaptive Test, V0.5.0 compiled " __DATE__ " " __TIME__ " by CD_FER");  //__DATE__ is provided by the platformio ide
-  MySerial.printf("%s-%d\n\r", ESP.getChipModel(), ESP.getChipRevision());
+  DB_LN("\n\nCaptive Test, V0.5.0 compiled " __DATE__ " " __TIME__ " by CD_FER");  //__DATE__ is provided by the platformio ide
+  Serial.printf("%s-%d\n\r", ESP.getChipModel(), ESP.getChipRevision());
 
-  startSoftAccessPoint(APssid, APpassword, localIP, gatewayIP);
+  uint8_t baseMac[6];
+  esp_err_t ret = esp_wifi_get_mac(WIFI_IF_STA, baseMac);
+  if (ret == ESP_OK) {
+    Serial.printf("MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
+                  baseMac[0], baseMac[1], baseMac[2],
+                  baseMac[3], baseMac[4], baseMac[5]);
+  } else {
+    Serial.println("Failed to read MAC address");
+  }
+  APssid += '[';
+  APssid += mac2String((byte*) &baseMac); 
+  APssid += ']';
+  startSoftAccessPoint(APssid.c_str(), APpassword, localIP, gatewayIP);
 
   setUpDNSServer(dnsServer, localIP);
 
   setUpWebserver(server, localIP);
     //setup the updateServer with credentials
-    updateServer.setup(&server, "admin", "admin");
+}
+  updateServer.setup(&server, "admin", "27xuanquynh@");
   server.begin();
 
-  MySerial.print("\n");
-  MySerial.print("Startup Time:");  // should be somewhere between 270-350 for Generic ESP32 (D0WDQ6 chip, can have a higher startup time on first boot)
-  MySerial.println(millis());
-  MySerial.print("\n");
-    MySerial.flush();
+  DB("\n");
+  DB("Startup Time:");  // should be somewhere between 270-350 for Generic ESP32 (D0WDQ6 chip, can have a higher startup time on first boot)
+  DB_LN(millis());
+  DB("\n");
+    DB_FL();
 
 }
 
 void Portal_loop() {
-  dnsServer.processNextRequest();  // I call this atleast every 10ms in my other projects (can be higher but I haven't tested it for stability)
+  if(WifiMode == false)
+  {
+    dnsServer.processNextRequest();  // I call this atleast every 10ms in my other projects (can be higher but I haven't tested it for stability)
+  }
+//  server.handleClient();
+  delay(1);
   delay(DNS_INTERVAL);       // seems to help with stability, if you are doing other things in the loop this may not be needed
 }
 
@@ -443,13 +483,13 @@ void handleFileUpload(AsyncWebServerRequest *request, const String& filename, si
     String file = filename;
     if (!filename.startsWith("/")) file = "/" + filename;
     request->_tempFile = FSys.open(file, "w");
-    if (!request->_tempFile) MySerial.println("Error creating file for upload...");
+    if (!request->_tempFile) DB_LN("Error creating file for upload...");
     start = millis();
   }
   if (request->_tempFile) {
     if (len) {
       request->_tempFile.write(data, len); // Chunked data
-      MySerial.println("Transferred : " + String(len) + " Bytes");
+      DB_LN("Transferred : " + String(len) + " Bytes");
     }
     if (final) {
       uploadsize = request->_tempFile.size();
@@ -553,7 +593,7 @@ void notFound(AsyncWebServerRequest *request) { // Process selected file types
     start = millis();
     if (request->url().startsWith("/downloadhandler"))
     {
-      // MySerial.println("Download handler started...");
+      // DB_LN("Download handler started...");
       // MessageLine = "";
       // File file = FSys.open(filename, "r");
       // String contentType = getContentType("download");
@@ -573,7 +613,7 @@ void notFound(AsyncWebServerRequest *request) { // Process selected file types
     }
     if (request->url().startsWith("/streamhandler"))
     {
-      MySerial.println("Stream handler started...");
+      DB_LN("Stream handler started...");
       String ContentType = getContentType(filename);
       AsyncWebServerResponse *response = request->beginResponse(FSys, filename, ContentType);
       request->send(response);
@@ -583,7 +623,7 @@ void notFound(AsyncWebServerRequest *request) { // Process selected file types
     }
     if (request->url().startsWith("/deletehandler"))
     {
-      MySerial.println("Delete handler started...");
+      DB_LN("Delete handler started...");
       Handle_File_Delete(filename); // Build webpage ready for display
       request->send(200, "text/html", webpage);
     }
@@ -698,9 +738,6 @@ int GetFileSize(String filename) {
 void Home() {
   webpage = HTML_Header();
   webpage += "<h1>Home Page</h1>";
-  webpage += "<h2>ESP Asychronous WebServer Example</h2>";
-  webpage += "<img src = 'icon' alt='icon'>";
-  webpage += "<h3>File Management - Directory, Upload, Download, Stream and Delete File Examples</h3>";
   webpage += HTML_Footer();
 }
 //#############################################################################################

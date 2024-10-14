@@ -20,17 +20,38 @@
 
 #ifdef LED_Controller
 
+#define EN_DEBUG
 
+#define ESP32S2
+// HardwareSerial MySerial0(0);
+#if defined(EN_DEBUG)
+#ifdef ESP32S2
+#define txPins 43
+#define rxPins 44
+// const int SerialBaudrate = 115200;  // or 19200 usually
+// HardwareSerial MySerials(0);
+#define debug Serial
+#else
+#define debug Serial
+#endif//ESP32S2
 
-#define rxPin 44
-#define txPin 43
-HardwareSerial MySerial(0);
-const int SerialBaudrate = 115200;  // or 19200 usually
+#define DB(x) debug.print(x);
+#define DBf(x) debug.printf(x);
+#define DB_LN(x) debug.println(x);
+#ifdef ESP32S2
+// #define DB_BG(x) {debug.begin(SerialBaudrate, SERIAL_8N1, rxPins, txPins);};
+#define DB_BG(x) debug.begin(x);
+#else
+#define DB_BG(x) debug.begin(x);
+#endif//ESP32S2
+#define DB_FL() debug.flush();
 
+#else
+#define DB_BG(...)
+#define DB(...)
+#define DB_LN(...)
+#endif
 
-
-#define DB(x) MySerial.print(x);
-#define DB_LN(x) MySerial.println(x);
 
 #include "SupportFile/StringSplit.h"
 #include <WiFi.h>
@@ -45,8 +66,8 @@ const int SerialBaudrate = 115200;  // or 19200 usually
 #define LOG(string) {Serial.print(string);} 
 #define LOGLN(string) {Serial.println(string);}
 // Replace with your network credentials
-const char* ssid = "Hoang Vuong";
-const char* password = "91919191";
+const char* ssid = "I-Soft";
+const char* password = "i-soft@2023";
 
 // Create AsyncWebServer object on port 80
 // AsyncWebServer server(80);
@@ -65,12 +86,11 @@ void notifyClientsLed();
 void initPSRAM();
 String processor(const String& var);
 String ConvBinUnits(int bytes, int resolution) ;
-void processors(){
-  MySerial.println("Processing");
-}
+
 
 TaskHandle_t TskLED;
 TaskHandle_t TskPortal;
+TaskHandle_t Tsk595;
 
 String dataLeds = "{\"a\":[\
   [1,3,2],\
@@ -151,28 +171,28 @@ String effectRead = "";
 // {
 //     char error_buf1[100];
 //   if(LooklineDebug){
-//     MySerial.println();
-//     MySerial.println("___________________________________");
-//     MySerial.println();
+//     DB_LN();
+//     DB_LN("___________________________________");
+//     DB_LN();
 //   }
 //      esp_err_t error_code = esp_wifi_get_protocol(current_wifi_interface, &current_protocol);
 //      esp_err_to_name_r(error_code,error_buf1,100);
 //   if(LooklineDebug){
-//      MySerial.print("esp_wifi_get_protocol error code: ");
-//      MySerial.println(error_buf1);
-//     MySerial.println("Code: " + String(current_protocol));
+//      DB("esp_wifi_get_protocol error code: ");
+//      DB_LN(error_buf1);
+//     DB_LN("Code: " + String(current_protocol));
 //     if ((current_protocol&WIFI_PROTOCOL_11B) == WIFI_PROTOCOL_11B)
-//       MySerial.println("Protocol is WIFI_PROTOCOL_11B");
+//       DB_LN("Protocol is WIFI_PROTOCOL_11B");
 //     if ((current_protocol&WIFI_PROTOCOL_11G) == WIFI_PROTOCOL_11G)
-//       MySerial.println("Protocol is WIFI_PROTOCOL_11G");
+//       DB_LN("Protocol is WIFI_PROTOCOL_11G");
 //     if ((current_protocol&WIFI_PROTOCOL_11N) == WIFI_PROTOCOL_11N)
-//       MySerial.println("Protocol is WIFI_PROTOCOL_11N");
+//       DB_LN("Protocol is WIFI_PROTOCOL_11N");
 //     if ((current_protocol&WIFI_PROTOCOL_LR) == WIFI_PROTOCOL_LR)
-//       MySerial.println("Protocol is WIFI_PROTOCOL_LR");
-//     MySerial.println("___________________________________");
-//     MySerial.println();
-//     MySerial.println();
-//     MySerial.flush();
+//       DB_LN("Protocol is WIFI_PROTOCOL_LR");
+//     DB_LN("___________________________________");
+//     DB_LN();
+//     DB_LN();
+//     DB_FL();
 //   }
 //     return current_protocol;
 // }
@@ -193,6 +213,19 @@ void TskLEDControl( void * pvParameters ) {
       delay(500);
     }
   }
+
+void TskPush595( void * pvParameters ) {
+  DB("Task Push595 running on core ");
+  DB_LN(xPortGetCoreID());
+  long current_Time = millis();
+  long time = 500;
+  pinMode(1, OUTPUT);
+    for (;;) {
+      if(millis() - current_Time > time) {current_Time = millis();digitalWrite(1, !digitalRead(1));}
+      Push595();
+
+    }
+  }
 //#############################################################################################
 String ConvBinUnits(int bytes, int resolution) {
   if      (bytes < 1024)                 {
@@ -207,6 +240,17 @@ String ConvBinUnits(int bytes, int resolution) {
   else return "";
 }
 void TaskInit(){
+    //------------------------------------------------------------------------
+  //TskWIFI : Led Control task
+  xTaskCreatePinnedToCore(
+    TskPush595,   /* Task function. */
+    "Task Push595",     /* name of task. */
+    800,       /* Stack size of task */
+    NULL,        /* parameter of the task */
+    1,           /* priority of the task*/
+    &Tsk595,      /* Task handle to keep track of created task */
+    0);          /* pin task to core 0/1 */
+  delay(500);
   //------------------------------------------------------------------------
   //TskWIFI : WiFi task
   xTaskCreatePinnedToCore(
@@ -229,12 +273,12 @@ void TaskInit(){
     &TskLED,      /* Task handle to keep track of created task */
     0);          /* pin task to core 0/1 */
   delay(500);
+
   
 }
 void setup(){
-
-    MySerial.begin(SerialBaudrate, SERIAL_8N1, rxPin, txPin);
-    MySerial.println("MySerial Main");
+    DB_BG(115200);
+    DB_LN("MySerial Main");
 
 
       // check_protocol();
@@ -256,15 +300,15 @@ void setup(){
 
   // // Start server
   // server.begin();
-  MySerial.flush();
-  Portal_setup();
+  DB_FL();
+  Portal_setup(1);
   // Browser_setup();
-  MySerial.println("________________________________________________________________");
+  DB_LN("________________________________________________________________");
   listDir(SPIFFS, "/", 0);
-  MySerial.println("________________________________________________________________");
+  DB_LN("________________________________________________________________");
     effectRead = readFile(SPIFFS, "/effect.js");
-    MySerial.println(effectRead);
-  MySerial.flush();
+    DB_LN(effectRead);
+  DB_FL();
   Light_setup();   
 //  Flash_setup(); 
   TaskInit();
@@ -273,7 +317,7 @@ void setup(){
 void loop(){
   // Browser_loop();
   static unsigned lastTimeSensor = millis();
-  static unsigned timerDelaySensor = 10000;
+  static unsigned timerDelaySensor = 2000;
   if ((millis() - lastTimeSensor) > timerDelaySensor) {
     //1 Start | 2 Ethernet | 3 socket connect | 4 socket disconnect | 5 Wifi STA | 6 Wifi AP
     DB("Current Free RAM: " + String(ConvBinUnits(ESP.getFreeHeap(), 1)) );
@@ -286,7 +330,7 @@ void loop(){
   unsigned long lastTime = millis();
   if ((millis() - lastTime) > timerDelay) {
     String sensorReadings = getSensorReadings();
-   MySerial.print(sensorReadings);
+   DB(sensorReadings);
     notifyClients(sensorReadings);
     lastTime = millis();
   }
@@ -312,7 +356,7 @@ String getSensorReadings(){
     readings["Printer State"] = "printer online";   // debug that we are online
   } else {
     readings["Printer State"] = "printer offline: ";  // debug that we are offline
-  //  MySerial.println(printStatus);        // debug the returned status code  
+  //  DB_LN(printStatus);        // debug the returned status code  
   } 
   // readings["khoiluong"] = String(random(10,100)) + "Kg";
   // readings["Printer State"] = String(printStatus);
@@ -322,8 +366,8 @@ String getSensorReadings(){
 
 // Initialize SPIFFS
 void initSPIFFS() {
-  if (!SPIFFS.begin(true)) {MySerial.println("An error has occurred while mounting SPIFFS");}
-  else{MySerial.println("SPIFFS mounted successfully");}
+  if (!SPIFFS.begin(true)) {DB_LN("An error has occurred while mounting SPIFFS");}
+  else{DB_LN("SPIFFS mounted successfully");}
 }
 bool setup_mode = false;
 
@@ -362,15 +406,15 @@ PSRAM_setup();
 }
 void initWiFi() {
   WiFi.mode(WIFI_AP_STA);
-  MySerial.println("SSID: "+ String(ssid));
-  MySerial.println("PASS: "+ String(password));
+  DB_LN("SSID: "+ String(ssid));
+  DB_LN("PASS: "+ String(password));
   WiFi.begin(ssid, password);
- MySerial.print("Connecting to WiFi ..");
+ DB("Connecting to WiFi ..");
  byte wait = 0;
   while (WiFi.status() != WL_CONNECTED) {
-   MySerial.print('.');
+   DB('.');
     delay(1000);
-    if(wait++ >20){startAP(1);delay(1000); break;}
+    if(wait++ >2){Portal_setup(0);delay(1000); break;}
   }
     //   byte tries = 1;
     // if ( String(ssid) != "" && String(password) != ""  ) {
@@ -384,7 +428,7 @@ void initWiFi() {
     // } else {
     //   startAP(true);
     // }
- MySerial.println(WiFi.localIP());
+ DB_LN(WiFi.localIP());
 }
 
 void notifyClients(String sensorReadings) {
@@ -397,7 +441,7 @@ void notifyClientsLed() {
 }
 
 String processor(const String& var){
- MySerial.println(var);
+ DB_LN(var);
   if(var == "STATE"){
     if (ledState){
       return "ON";
@@ -413,22 +457,26 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
   AwsFrameInfo *info = (AwsFrameInfo*)arg;
   if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
     data[len] = 0;
-      MySerial.println((char*)data);
+      DB_LN((char*)data);
       JSONVar Obj = JSON.parse((char*)data);
-      MySerial.println("CMD: " + String((const char*)Obj["CMD"]));
+      if (JSON.typeof(Obj) == "undefined") {
+        DB_LN("Parsing input failed!");
+        return;
+      }
+      DB_LN("CMD: " + String((const char*)Obj["CMD"]));
       if(String((const char*)Obj["CMD"]) == "Save"){
         writeFile(SPIFFS, "/effect.js", (char*)data);
-        MySerial.println((char*)data);
+        DB_LN((char*)data);
         effectRead = readFile(SPIFFS, "/effect.js");
-        MySerial.println(effectRead);
+        DB_LN(effectRead);
       }
       if(String((const char*)Obj["CMD"]) == "Try"){
-        MySerial.println("Try");
+        DB_LN("Try");
         effectRead = (char*)data;
-        MySerial.println(effectRead);
+        DB_LN(effectRead);
       }
       String sensorReadings = getSensorReadings();
-      MySerial.println(sensorReadings);
+      DB_LN(sensorReadings);
       notifyClients(sensorReadings);
 
   }
@@ -437,10 +485,10 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
 void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
   switch (type) {
     case WS_EVT_CONNECT:
-     MySerial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+     Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
       break;
     case WS_EVT_DISCONNECT:
-     MySerial.printf("WebSocket client #%u disconnected\n", client->id());
+     Serial.printf("WebSocket client #%u disconnected\n", client->id());
       break;
     case WS_EVT_DATA:
       handleWebSocketMessage(arg, data, len);
