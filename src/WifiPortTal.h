@@ -331,26 +331,26 @@ if(Mode){
 //    DB_LN("scan start");
 
 //   // WiFi.scanNetworks will return the number of networks found
-   int n = WiFi.scanNetworks();
-  DB_LN("scan done");
-   if (n == 0) {
-      DB_LN("no networks found");
-   } else {
-    DB(n);
-    DB_LN(" networks found");
-     for (int i = 0; i < n; ++i) {
-       // Print SSID and RSSI for each network found
-      DB(i + 1);
-      DB(": ");
-      DB(WiFi.SSID(i));
-      DB(" (");
-      DB(WiFi.RSSI(i));
-      DB(")");
-      DB_LN((WiFi.encryptionType(i) == WIFI_AUTH_OPEN)?" ":"*");
-       delay(10);
-     }
-   }
-  DB_LN("");
+  //  int n = WiFi.scanNetworks();
+  // DB_LN("scan done");
+  //  if (n == 0) {
+  //     DB_LN("no networks found");
+  //  } else {
+  //   DB(n);
+  //   DB_LN(" networks found");
+  //    for (int i = 0; i < n; ++i) {
+  //      // Print SSID and RSSI for each network found
+  //     DB(i + 1);
+  //     DB(": ");
+  //     DB(WiFi.SSID(i));
+  //     DB(" (");
+  //     DB(WiFi.RSSI(i));
+  //     DB(")");
+  //     DB_LN((WiFi.encryptionType(i) == WIFI_AUTH_OPEN)?" ":"*");
+  //      delay(10);
+  //    }
+  //  }
+  // DB_LN("");
   initWiFi();
 }
 else{

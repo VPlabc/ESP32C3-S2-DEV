@@ -3,8 +3,8 @@
 #include "LightControl.h"
 #include <Arduino_JSON.h>
 #include <assert.h>
-
-
+#include "VarGlobal.h"
+VariableG var;
 
 #define Effect
 #ifdef Effect 
@@ -107,7 +107,11 @@ int number_of_74hc595s = 1;
 byte numOfRegisterPins = number_of_74hc595s * 8;
 
 boolean registers[8*32];
-byte registersLED[128];
+uint8_t registersLED[128];
+
+bool mappingRevert[10] = {1,1,0,0,0,0,0,0,0,0};
+byte mappingPort[10] = {0,1,3,2,0,0,0,0,0,0};
+byte Chip = 0;
 
 void RTC_Get(){
   // get the current time
@@ -179,13 +183,15 @@ void Light_setup() {
 }
 
 void Light_loop(String dataLed) {
+
+  
+
+}
+void Effects(String dataLed){
     JSONVar myObject = JSON.parse(dataLed);
   // JSON.typeof(jsonVar) can be used to get the type of the variable
-  if (JSON.typeof(myObject) == "undefined") {
-    DB_LN("Parsing input failed!");
-    return;
-  }
-  DB_LN(dataLed);
+  if (JSON.typeof(myObject) == "undefined") {DB_LN("Parsing input failed!");return;}
+  // DB_LN(dataLed);
   int len =  myObject["Data"].length();
   for(int i = 0; i < len; i++) {
     // DB_LN("Effect: " + String((int) myObject["Data"][i][0]));
@@ -193,6 +199,8 @@ void Light_loop(String dataLed) {
     DB(" | Replay: " + String((int) myObject["Data"][i][3]));
     DB("| speed: " + String((int) myObject["Data"][i][4]));
     DB_LN("| board amount: " + String((int) myObject["Data"][i][1]));
+    for(int i = 0; i < (int) myObject["Map"].length(); i++){mappingPort[i] = ((int) myObject["Map"][i])-1;}
+    for(int i = 0; i < (int) myObject["Revert"].length(); i++){mappingRevert[i] = ((int) myObject["Revert"][i]);}
     number_of_74hc595s = (int) myObject["Data"][i][1];
     numOfRegisterPins = number_of_74hc595s * 8;
     if((int) myObject["Data"][i][0] == 1){effect_1((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
@@ -202,7 +210,7 @@ void Light_loop(String dataLed) {
     if((int) myObject["Data"][i][0] == 5){effect_5((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
     if((int) myObject["Data"][i][0] == 6){effect_6((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
     if((int) myObject["Data"][i][0] == 7){effect_7((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
-    if((int) myObject["Data"][i][0] == 8){effect_2((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
+    if((int) myObject["Data"][i][0] == 8){effect_8((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
     if((int) myObject["Data"][i][0] == 9){effect_9((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
     if((int) myObject["Data"][i][0] == 10){effect_10((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
     if((int) myObject["Data"][i][0] == 11){effect_11((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
@@ -211,15 +219,18 @@ void Light_loop(String dataLed) {
     if((int) myObject["Data"][i][0] == 14){effect_14((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
     if((int) myObject["Data"][i][0] == 15){effect_15((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
     if((int) myObject["Data"][i][0] == 16){effect_16((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
-    if((int) myObject["Data"][i][0] == 17){effect_10((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
+    if((int) myObject["Data"][i][0] == 17){effect_17((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
     if((int) myObject["Data"][i][0] == 18){effect_18((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
+    if((int) myObject["Data"][i][0] == 19){effect_19((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
+    if((int) myObject["Data"][i][0] == 20){effect_20((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
+    if((int) myObject["Data"][i][0] == 21){effect_21((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
+    // if((int) myObject["Data"][i][0] == 22){effect_18((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
+    // if((int) myObject["Data"][i][0] == 23){effect_18((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
+    // if((int) myObject["Data"][i][0] == 24){effect_24((int) myObject["Data"][i][3],(int) myObject["Data"][i][4]);}
     clearLed(0);
   }
   RTC_Get();
-  
-
 }
-
 //////////////////////////////////////////////////////////// Effect 1
 byte boiso = 3;
 byte CountStep = 0;
@@ -229,12 +240,13 @@ DB_LN("Effect 1");
     while(CountStep < number_of_74hc595s * 8){
       
       for (int i = (boiso * CountStep) + CountStep; i < boiso * CountStep + 1; i++) {
-        digitalWrite(latchPin, LOW);
+        // digitalWrite(latchPin, LOW);
         registersWrite(i, HIGH, 1*speed);
         delay(40*speed);
       }
       for (int i = boiso * CountStep + 1; i > (boiso * CountStep) + CountStep; i--) {
-        registersWrite(i, HIGH, 1*speed);
+        // registersWrite(i, HIGH, 1*speed);
+        registersWrite(i, LOW, 1*speed);
         delay(40*speed);
       }
       CountStep ++;
@@ -254,27 +266,27 @@ DB_LN("Effect 2");
 
     for (int i = 0; i < number_of_74hc595s * 8; i++) {
 
-      registersWrite(i, HIGH, 1*speed);
+      registersWrite(i, HIGH, 0);
 
       delay(t1*speed);
 
-      registersWrite(i + 1, HIGH, 1*speed);
+      registersWrite(i + 1, HIGH, 0);
 
       delay(t1*speed);
 
-      registersWrite(i + 2, HIGH, 1*speed);
+      registersWrite(i + 2, HIGH, 0);
 
       delay(t1*speed);
 
-      registersWrite(i + 3, HIGH, 1*speed);
+      registersWrite(i + 3, HIGH, 0);
 
       delay(t1*speed);
 
-      registersWrite(i, LOW, 1*speed);
+      registersWrite(i, LOW, 0);
 
       delay(t1*speed);
 
-      registersWrite(i + 1, LOW, 1*speed);
+      registersWrite(i + 1, LOW, 0);
 
       delay(t1*speed);
 
@@ -284,27 +296,27 @@ DB_LN("Effect 2");
 
     for (int i = (number_of_74hc595s * 8) - 1; i >= 0; i--) {
 
-      registersWrite(i, HIGH, 1*speed);
+      registersWrite(i, HIGH, 0);
 
       delay(t1*speed);
 
-      registersWrite(i - 1, HIGH, 1*speed);
+      registersWrite(i - 1, HIGH, 0);
 
       delay(t1*speed);
 
-      registersWrite(i - 2, HIGH, 1*speed);
+      registersWrite(i - 2, HIGH, 0);
 
       delay(t1*speed);
 
-      registersWrite(i - 3, HIGH, 1*speed);
+      registersWrite(i - 3, HIGH, 0);
 
       delay(t1*speed);
 
-      registersWrite(i, LOW, 1*speed);
+      registersWrite(i, LOW, 0);
 
       delay(t1*speed);
 
-      registersWrite(i - 1, LOW, 1*speed);
+      registersWrite(i - 1, LOW, 0);
 
       delay(t1*speed);
 
@@ -325,7 +337,7 @@ DB_LN("Effect 3");
 
       registersWrite(i, HIGH, 1*speed);
 
-      delay(10* speed);
+      delay(1* speed);
 
     }
 
@@ -333,7 +345,7 @@ DB_LN("Effect 3");
 
       registersWrite(i, LOW, 1*speed);
 
-      delay(10*speed);
+      delay(1*speed);
 
     }
 
@@ -347,29 +359,24 @@ void effect_4(int effectcount,int speed) {
 DB_LN("Effect 4");
 
   for (int j = 1; j <= effectcount; j++) {
+    for(byte i = 0 ; i < (number_of_74hc595s*8)/4; i++){
+        // shiftOut(dataPin, clockPin, MSBFIRST, led);
+      registersWrite(i*4, HIGH, 0);registersWrite((i*4)+1, LOW, 0);registersWrite((i*4)+2, LOW, 0);registersWrite((i*4)+3, LOW, 0);}
 
-    byte led = 0b10101010;
+    delay(2*speed);
+    for(byte i = 0 ; i < (number_of_74hc595s*8)/4; i++){
+      registersWrite(i*4, LOW, 0);registersWrite((i*4)+1, HIGH, 0);registersWrite((i*4)+2, LOW, 0);registersWrite((i*4)+3, LOW, 0);}
 
-    digitalWrite(latchPin, LOW);
-    for(byte i = 0 ; i < number_of_74hc595s; i++){
-        shiftOut(dataPin, clockPin, MSBFIRST, led);}
+    delay(2*speed);
+    for(byte i = 0 ; i < (number_of_74hc595s*8)/4; i++){
+      registersWrite(i*4, LOW, 0);registersWrite((i*4)+1, LOW, 0);registersWrite((i*4)+2, HIGH, 0);registersWrite((i*4)+3, LOW, 0);}
 
-    digitalWrite(latchPin, HIGH);
+    delay(2*speed);
+    for(byte i = 0 ; i < (number_of_74hc595s*8)/4; i++){
+      registersWrite(i*4, LOW, 0);registersWrite((i*4)+1, LOW, 0);registersWrite((i*4)+2, LOW, 0);registersWrite((i*4)+3, HIGH, 0);}
 
-    delay(20*speed);
+    delay(2*speed);
 
-
-
-    byte led1 = 0b01010101;
-
-    digitalWrite(latchPin, LOW);
-
-    for(byte i = 0 ; i < number_of_74hc595s; i++){
-        shiftOut(dataPin, clockPin, MSBFIRST, led1);}
-
-    digitalWrite(latchPin, HIGH);
-
-    delay(20*speed);
 
   }
 
@@ -452,56 +459,52 @@ DB_LN("Effect 7");
 
 void effect_8(int effectcount, int speed) {
 DB_LN("Effect 8");
-
+    // supen();
+    byte range = 100;
+    byte low = 10;
     byte led = 0B11111111;
     byte led1 = 0B00000000;
-    
-    digitalWrite(latchPin, LOW);
-    for(byte a = 0 ; a < number_of_74hc595s; a++){
-        shiftOut(dataPin, clockPin, MSBFIRST, led1);}
-    digitalWrite(latchPin, HIGH);
-    delay(2000);
+  for (int k = 0; k < number_of_74hc595s * 8; k++) {registersWrite(k, LOW, 0);}Push595();
+    // delay(2000);
+  for (int k = 0; k < number_of_74hc595s * 8; k++) {registersWrite(k, HIGH, 0);}
   for (int i = 1; i <= effectcount; i++) {
-    for(int b = 0 ; b < 10; b+=1){
-        for(int i = 0 ; i < 60*speed; i++){   
+    for(int b = low ; b < range; b+=range/10){
+        for(int i = 0 ; i < speed; i++){   
             digitalWrite(latchPin, LOW);
             for(byte a = 0 ; a < number_of_74hc595s; a++){
                 shiftOut(dataPin, clockPin, MSBFIRST, led);}
             digitalWrite(latchPin, HIGH);
-            delayMicroseconds(b*10);
+            delayMicroseconds((b*range));
             digitalWrite(latchPin, LOW);
             for(byte a = 0 ; a < number_of_74hc595s; a++){
                 shiftOut(dataPin, clockPin, MSBFIRST, led1);}
             digitalWrite(latchPin, HIGH);
-            delayMicroseconds((10-b)*10);
+            delayMicroseconds(((range-b)*range));
         }
-    }
-        
-    digitalWrite(latchPin, LOW);
-    for(byte a = 0 ; a < number_of_74hc595s; a++){
-        shiftOut(dataPin, clockPin, MSBFIRST, led);}
-    digitalWrite(latchPin, HIGH);
+    }    
+    Push595();
     delay(2000);
-    for(int b = 10 ; b > 0; b-=1){
-        for(int i = 0 ; i < 40*speed; i++){   
+    for (int k = 0; k < number_of_74hc595s * 8; k++) {registersWrite(k, LOW, 0);}
+    for(int b = range ; b > low; b-=range/10){
+        for(int i = 0 ; i < 2*speed; i++){   
             digitalWrite(latchPin, LOW);
             for(byte a = 0 ; a < number_of_74hc595s; a++){
                 shiftOut(dataPin, clockPin, MSBFIRST, led);}
             digitalWrite(latchPin, HIGH);
-            delayMicroseconds(b*10);
+            delayMicroseconds((b*range));
             digitalWrite(latchPin, LOW);
             for(byte a = 0 ; a < number_of_74hc595s; a++){
                 shiftOut(dataPin, clockPin, MSBFIRST, led1);}
             digitalWrite(latchPin, HIGH);
-            delayMicroseconds((10-b)*10);
+            delayMicroseconds(((range-b)*range));
         }
     }
-    digitalWrite(latchPin, LOW);
-    for(byte a = 0 ; a < number_of_74hc595s; a++){
-        shiftOut(dataPin, clockPin, MSBFIRST, led1);}
-    digitalWrite(latchPin, HIGH);
+  Push595();
 
+      // for (int k = 0; k < number_of_74hc595s * 8; k++) {registersWrite(k, LOW, 0);Push595();}
   }
+  
+  //  resum();
 
 }
 
@@ -627,13 +630,13 @@ DB_LN("Effect 12");
 
         registersWrite(((number_of_74hc595s * 8)-1) - k, HIGH, 1*speed);
 
-        delay(20);
+        delay(10);
 
         registersWrite(k, LOW, 1*speed);
 
         registersWrite(((number_of_74hc595s * 8)-1) - k, LOW, 1*speed);
 
-        delay(20);
+        delay(10);
 
       }
 
@@ -664,13 +667,13 @@ DB_LN("Effect 13");
 
         registersWrite(((number_of_74hc595s * 8)-1) - k, HIGH, 1*speed);
 
-        delay(4*speed);
+        delay(2*speed);
 
         registersWrite(k, LOW, 1*speed);
 
         registersWrite(((number_of_74hc595s * 8)-1) - k, LOW, 1*speed);
 
-        delay(4*speed);
+        delay(2*speed);
 
       }
 
@@ -801,49 +804,47 @@ void effect_17(int effectcount,int speed) {
 DB_LN("Effect 17");
     byte led = 0B10101010;
     byte led1 = 0B01010101;
+    byte range = 100;
+    byte low = 10;
+  for (int k = 0; k < number_of_74hc595s * 8; k++) {registersWrite(k, LOW, 0);}
+  for (int k = 0; k < number_of_74hc595s * 8; k++) {registersWrite(k, HIGH, 10);Push595();}
+    // delay(2000);
   for (int i = 1; i <= effectcount; i++) {
-
-    for (int i = 1; i <= 10; i++) {
-      for(int b = 0 ; b < 10; b+=1){
-          for(int i = 0 ; i < 40*speed; i++){   
-              digitalWrite(latchPin, LOW);
-              for(byte a = 0 ; a < number_of_74hc595s; a++){
-                  shiftOut(dataPin, clockPin, MSBFIRST, led);}
-              digitalWrite(latchPin, HIGH);
-              delayMicroseconds(b*10);
-              digitalWrite(latchPin, LOW);
-              for(byte a = 0 ; a < number_of_74hc595s; a++){
-                  shiftOut(dataPin, clockPin, MSBFIRST, led1);}
-              digitalWrite(latchPin, HIGH);
-              delayMicroseconds((10-b)*10);
-          }
-      }
-          
-      // digitalWrite(latchPin, LOW);
-      // for(byte a = 0 ; a < number_of_74hc595s; a++){
-      //     shiftOut(dataPin, clockPin, MSBFIRST, led);}
-      // digitalWrite(latchPin, HIGH);
-      // delay(2000);
-      for(int b = 10 ; b > 0; b-=1){
-          for(int i = 0 ; i < 40*speed; i++){   
-              digitalWrite(latchPin, LOW);
-              for(byte a = 0 ; a < number_of_74hc595s; a++){
-                  shiftOut(dataPin, clockPin, MSBFIRST, led);}
-              digitalWrite(latchPin, HIGH);
-              delayMicroseconds(b*10);
-              digitalWrite(latchPin, LOW);
-              for(byte a = 0 ; a < number_of_74hc595s; a++){
-                  shiftOut(dataPin, clockPin, MSBFIRST, led1);}
-              digitalWrite(latchPin, HIGH);
-              delayMicroseconds((10-b)*10);
-          }
-      }
-      digitalWrite(latchPin, LOW);
-      for(byte a = 0 ; a < number_of_74hc595s; a++){
-          shiftOut(dataPin, clockPin, MSBFIRST, led1);}
-      digitalWrite(latchPin, HIGH);
+    for(int b = low ; b < range; b+=range/10){
+        for(int i = 0 ; i < speed; i++){   
+            digitalWrite(latchPin, LOW);
+            for(byte a = 0 ; a < number_of_74hc595s; a++){
+                shiftOut(dataPin, clockPin, MSBFIRST, led);}
+            digitalWrite(latchPin, HIGH);
+            delayMicroseconds((b*range));
+            digitalWrite(latchPin, LOW);
+            for(byte a = 0 ; a < number_of_74hc595s; a++){
+                shiftOut(dataPin, clockPin, MSBFIRST, led1);}
+            digitalWrite(latchPin, HIGH);
+            delayMicroseconds(((range-b)*range));
+        }
     }
+        
+      // for (int k = 0; k < number_of_74hc595s * 8; k++) {registersWrite(k, HIGH, 0);}
+    // delay(2000);
+    for(int b = range ; b > low; b-=range/10){
+        for(int i = 0 ; i < speed; i++){   
+            digitalWrite(latchPin, LOW);
+            for(byte a = 0 ; a < number_of_74hc595s; a++){
+                shiftOut(dataPin, clockPin, MSBFIRST, led);}
+            digitalWrite(latchPin, HIGH);
+            delayMicroseconds((b*range));
+            digitalWrite(latchPin, LOW);
+            for(byte a = 0 ; a < number_of_74hc595s; a++){
+                shiftOut(dataPin, clockPin, MSBFIRST, led1);}
+            digitalWrite(latchPin, HIGH);
+            delayMicroseconds(((range-b)*range));
+        }
+    }
+
+
   }
+      for (int k = 0; k < number_of_74hc595s * 8; k++) {registersWrite(k, LOW, 10);Push595();}
 }
 
 ////////////////////////////////////////////////////////////Effect 18
@@ -853,35 +854,142 @@ DB_LN("Effect 18");
     byte led = 0B11111111;
     byte led1 = 0B00000000;
   for (int i = 1; i <= effectcount; i++) {
-        digitalWrite(latchPin, LOW);
-      for(byte a = 0 ; a < number_of_74hc595s; a++){
-          shiftOut(dataPin, clockPin, MSBFIRST, led);}
-      digitalWrite(latchPin, HIGH);
+      for(byte a = 0 ; a < number_of_74hc595s*8; a++){
+          registersWrite( led, HIGH, 0);}
       delay(10*speed);
-        digitalWrite(latchPin, LOW);
-      for(byte a = 0 ; a < number_of_74hc595s; a++){
-          shiftOut(dataPin, clockPin, MSBFIRST, led1);}
-      digitalWrite(latchPin, HIGH);
+      for(byte a = 0 ; a < number_of_74hc595s*8; a++){
+          registersWrite( led, LOW, 0);}
       delay(10*speed);
   }
 
 }
+
+//////////////////////////////////////////////////////////Effect 19
+
+void effect_19(int effectcount,int speed) {
+DB_LN("Effect 19");
+
+  for (int j = 1; j <= effectcount; j++) {
+    for(byte i = 0 ; i < (number_of_74hc595s*8)/2; i++){
+        // shiftOut(dataPin, clockPin, MSBFIRST, led);
+      registersWrite(i*2, HIGH, 0);registersWrite((i*2)+1, LOW, 0);}
+
+    delay(2*speed);
+    for(byte i = 0 ; i < (number_of_74hc595s*8)/2; i++){
+      registersWrite(i*2, LOW, 0);registersWrite((i*2)+1, HIGH, 0);
+
+    delay(2*speed);
+
+    }
+  }
+
+}
+
+//////////////////////////////////////////////////////////Effect 20
+
+void effect_20(int effectcount,int speed) {
+DB_LN("Effect 20");
+
+bool state[4];
+  for (int j = 1; j <= effectcount; j++) {
+    for(byte j = 0 ; j < 10; j++){
+      for(byte o = 5 ; o > 0; o--){
+        for(byte i = 0 ; i < number_of_74hc595s/2; i++){
+          for(byte k = 0 ; k < 16; k++){
+            if(j >= 0){registersWrite(i*16+k, LOW,0);}
+          }
+          for(byte k = 0 ; k < 4; k++){
+            registersWrite(i*16+random(0,16), HIGH,0);
+          }
+      }
+      delay(10);
+        for(byte i = 0 ; i < number_of_74hc595s/2; i++){
+          for(byte k = 0 ; k < 16; k++){
+            registersWrite(i*16+k, LOW,0);
+          }
+      }
+    }
+  }
+
+}
+}
+
+//////////////////////////////////////////////////////////Effect 21
+
+void effect_21(int effectcount,int speed) {
+DB_LN("Effect 21");
+  for (int j = 1; j <= effectcount; j++) {
+    for(byte j = 15 ; j > 0; j--){
+      // for(byte o = 5 ; o > 0; o--){
+        for(byte i = 0 ; i < number_of_74hc595s/2; i++){
+          for(byte k = 0 ; k < 16; k++){registersWrite(i*16+k, LOW,0);}
+          for(byte k = 0 ; k < 2; k++){
+            if(j >= random(0,j)){registersWrite(i*16+random(0,j), HIGH,0);}else{registersWrite(i*16+k, LOW,0);}
+          }
+      }
+      delay(10);
+        for(byte i = 0 ; i < number_of_74hc595s/2; i++){
+          for(byte k = 0 ; k < 16; k++){
+            if(j >= 0){registersWrite(i*16+k, LOW,0);}
+          }
+      }
+    // }
+    // delay(5*speed);
+  }
+  }
+}
+
+//////////////////////////////////////////////////////////Effect 22
+
+void effect_22(int effectcount,int speed) {
+DB_LN("Effect 22");
+  for (int j = 1; j <= effectcount; j++) {
+    for(byte j = 15 ; j > 0; j--){
+      for(byte o = 5 ; o > 0; o--){
+        for(byte i = 0 ; i < number_of_74hc595s/2; i++){
+          for(byte k = 0 ; k < 16; k++){registersWrite(i*16+k, LOW,0);}
+          for(byte k = 0 ; k < 2; k++){
+            if(j >= random(0,j)){registersWrite(i*16+random(0,j), HIGH,0);}else{registersWrite(i*16+k, LOW,0);}
+          }
+      }
+      delay(10);
+        for(byte i = 0 ; i < number_of_74hc595s/2; i++){
+          for(byte k = 0 ; k < 16; k++){
+            if(j >= 0){registersWrite(i*16+k, LOW,0);}
+          }
+      }
+    }
+    // delay(5*speed);
+  }
+  }
+}
+
+//////////////////////////////////////////////////////////Effect 23
+
+void effect_23(int effectcount,int speed) {
+DB_LN("Effect 23");
+  for (int j = 1; j <= effectcount; j++) {
+      for(byte i = 0 ; i < number_of_74hc595s*8; i++){registersWrite(i, HIGH,0); }
+      delay(5*speed);
+    // delay(5*speed);
+  }
+}
+
+//////////////////////////////////////////////////////////Effect 24
+
+void effect_24(int effectcount,int speed) {
+DB_LN("Effect 24");
+  for (int j = 1; j <= effectcount; j++) {
+      for(byte i = 0 ; i < number_of_74hc595s*8; i++){registersWrite(i, LOW,0);}
+      delay(5*speed);
+    // delay(5*speed);
+  }
+}
+
 
 #include "SupportFile/EncodeData.h"
 ////////////////////////////////////////////////////////////
 
-void Push595(){
-  byte LED;
-
-  digitalWrite(latchPin, LOW);
-
-  for (int i = 0; i < number_of_74hc595s; i++) {
-    shiftOut(dataPin, clockPin, MSBFIRST, registersLED[i]);
-  }
-
-  digitalWrite(latchPin, HIGH); 
-  delay(1);
-}
 void effect_0(int effectcount,int speed) {
 
 }
@@ -947,40 +1055,27 @@ void clearLed(int clearSpeed) {
 
 ////////////////////////////////////////////////////////////
 
-void turnOutputsOn() {
 
-//   digitalWrite(outputEnable, LOW);
+void Push595(){
 
+  digitalWrite(latchPin, LOW);
+  for (int i = 0; i < number_of_74hc595s; i++) {
+    Chip = mappingPort[i];
+    if(mappingRevert[Chip]){shiftOut(dataPin, clockPin, MSBFIRST, registersLED[Chip]);}
+    else{shiftOut(dataPin, clockPin, LSBFIRST, registersLED[Chip]);}
+  }
+  digitalWrite(latchPin, HIGH); 
+  // delay(1);
+  // delayMicroseconds(1000000);
 }
-
-void turnOutputsOff() {
-
-//   digitalWrite(outputEnable, HIGH, 5*speed);
-
-}
-
 ////////////////////////////////////////////////////////////
-
+int oldIndex = 0;
 void registersWrite(int index, int value, int time) {
-
-  // digitalWrite(latchPin, LOW);
-
+  registers[index] = value;
   for (int i = numOfRegisterPins - 1; i >=  0; i--) {
     registersLED[i] = EncodeRespondByte(registers[0+(i*8)],registers[1+(i*8)],registers[2+(i*8)],registers[3+(i*8)],registers[4+(i*8)],registers[5+(i*8)],registers[6+(i*8)],registers[7+(i*8)]);
-    // digitalWrite(clockPin, LOW);
-
-    // int val = registers[i];
-
-    // digitalWrite(dataPin, val);
-
-    // digitalWrite(clockPin, HIGH);
-
   }
-
-  // digitalWrite(latchPin, HIGH);
-
-  registers[index] = value;
-
+  Push595();
   delay(time);
 }
 #endif//18 Effect 

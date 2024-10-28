@@ -45,7 +45,7 @@ String readFile(fs::FS &fs, const char * path){
           char c = (char)file.read();
           content += c;
       }
-          DB(content);
+        //   DB(content);
     }
     file.close();
     return content;

@@ -24,7 +24,7 @@ unsigned int EncodeRespond(byte bytel,byte byteh)
     ret = ret | byte_two;
     return ret;
 }
-byte EncodeRespondByte(boolean a, boolean b, boolean c, boolean d, boolean e, boolean f, boolean g, boolean h)
+uint8_t EncodeRespondByte(boolean a, boolean b, boolean c, boolean d, boolean e, boolean f, boolean g, boolean h)
     {
         byte byte_1 = 0;
         byte_1 = a;

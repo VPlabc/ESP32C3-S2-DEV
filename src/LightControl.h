@@ -8,6 +8,9 @@ void turnOutputsOn();
 void registersWrite(int index, int value, int time);
 void clearLed(int clearSpeed) ;
 void updateShiftRegister(unsigned int leds);
+void effect_21(int effectcount,int speed);
+void effect_20(int effectcount,int speed);
+void effect_19(int effectcount,int speed);
 void effect_18(int effectcount, int speed);
 void effect_17(int effectcount, int speed);
 void effect_16(int effectcount, int speed) ;
@@ -26,12 +29,8 @@ void effect_4(int effectcount, int speed);
 void effect_3(int effectcount, int speed);
 void effect_2(int effectcount, int speed);
 void effect_1(int effectcount, int speed);
-void hieuung7();
-void hieuung3();
-void hieuung2();
-void hieuung1();
 void Push595();
-
+void Effects(String effect);
 void Light_loop(String dataLed);
 void Light_setup();
 

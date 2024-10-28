@@ -5,6 +5,8 @@
 //{"Application":[{"app":"0,0,7,0,0,Demo Machine1,0,2,1,3,4,5,6"},{"app":"1,0,7,1,0,Demo Machine2,7,9,8,10,11,12,13"},{"app":"2,0,7,2,0,Demo Machine3,14,16,15,17,18,19,20"},{"app":"3,0,7,3,0,Demo Machine4,21,23,22,24,25,26,27"}]}
 //{"app":"0,0,7,0,0,Demo Machine 1,0,2,1,3,4,5,6"},
 #include <Arduino.h>
+#include "VarGlobal.h"
+VariableG mainvar;
 // #define Rad
 // #define Sendmessage
 // #define BLE
@@ -20,37 +22,7 @@
 
 #ifdef LED_Controller
 
-#define EN_DEBUG
 
-#define ESP32S2
-// HardwareSerial MySerial0(0);
-#if defined(EN_DEBUG)
-#ifdef ESP32S2
-#define txPins 43
-#define rxPins 44
-// const int SerialBaudrate = 115200;  // or 19200 usually
-// HardwareSerial MySerials(0);
-#define debug Serial
-#else
-#define debug Serial
-#endif//ESP32S2
-
-#define DB(x) debug.print(x);
-#define DBf(x) debug.printf(x);
-#define DB_LN(x) debug.println(x);
-#ifdef ESP32S2
-// #define DB_BG(x) {debug.begin(SerialBaudrate, SERIAL_8N1, rxPins, txPins);};
-#define DB_BG(x) debug.begin(x);
-#else
-#define DB_BG(x) debug.begin(x);
-#endif//ESP32S2
-#define DB_FL() debug.flush();
-
-#else
-#define DB_BG(...)
-#define DB(...)
-#define DB_LN(...)
-#endif
 
 
 #include "SupportFile/StringSplit.h"
@@ -87,42 +59,15 @@ void initPSRAM();
 String processor(const String& var);
 String ConvBinUnits(int bytes, int resolution) ;
 
-
 TaskHandle_t TskLED;
 TaskHandle_t TskPortal;
 TaskHandle_t Tsk595;
+TaskHandle_t TskEffect;
 
-String dataLeds = "{\"a\":[\
-  [1,3,2],\
-  [2,5,2],\
-  [3,5,2],\
-  [4,5,2],\
-  [5,10,10],\
-  [6,10,10],\
-  [7,10,10],\
-  [8,10,2],\
-  [9,5,2],\
-  [10,5,2],\
-  [11,5,2],\
-  [12,5,2],\
-  [13,10,2],\
-  [14,10,2],\
-  [15,10,2],\
-  [16,10,2],\
-  [5,5,5],\
-  [6,5,5],\
-  [7,5,5],\
-  [8,10,2],\
-  [9,5,2],\
-  [10,5,2],\
-  [11,5,2],\
-  [12,5,2],\
-  [13,5,2],\
-  [14,5,2],\
-  [15,5,2],\
-  [16,5,2]\
-]}";
-
+// void supen() {vTaskSuspend(Tsk595);}
+// void resum() { vTaskResume(Tsk595);}
+// extern supen();
+// extern resum();
 String effectRead = "";
 #include "LightControl.h"
 //#include "ExFlash.h"
@@ -209,7 +154,7 @@ void TskLEDControl( void * pvParameters ) {
   DB_LN(xPortGetCoreID());
 
     for (;;) {
-      Light_loop(effectRead);
+      // Effects(effectRead);
       delay(500);
     }
   }
@@ -222,8 +167,18 @@ void TskPush595( void * pvParameters ) {
   pinMode(1, OUTPUT);
     for (;;) {
       if(millis() - current_Time > time) {current_Time = millis();digitalWrite(1, !digitalRead(1));}
-      Push595();
+      delay(1);
+    }
+  }
 
+
+void TskEffects( void * pvParameters ) {
+  DB("Task Effect running on core ");
+  DB_LN(xPortGetCoreID());
+
+    for (;;) {
+      Effects(effectRead);
+      delay(500);
     }
   }
 //#############################################################################################
@@ -274,6 +229,18 @@ void TaskInit(){
     0);          /* pin task to core 0/1 */
   delay(500);
 
+  //------------------------------------------------------------------------
+  //TskWIFI : Led Control task
+  xTaskCreatePinnedToCore(
+    TskEffects,   /* Task function. */
+    "Task Effect",     /* name of task. */
+    5000,       /* Stack size of task */
+    NULL,        /* parameter of the task */
+    1,           /* priority of the task*/
+    &TskEffect,      /* Task handle to keep track of created task */
+    0);          /* pin task to core 0/1 */
+  delay(500);
+
   
 }
 void setup(){
@@ -307,7 +274,7 @@ void setup(){
   listDir(SPIFFS, "/", 0);
   DB_LN("________________________________________________________________");
     effectRead = readFile(SPIFFS, "/effect.js");
-    DB_LN(effectRead);
+    // DB_LN(effectRead);
   DB_FL();
   Light_setup();   
 //  Flash_setup(); 
@@ -348,14 +315,14 @@ void loop(){
   }
     // delay(200);
   dnsServer.processNextRequest();
-
+    if(mainvar.dimmer == false){}
 }
 // Get Sensor Readings and return JSON object
 String getSensorReadings(){
   if (printStatus == 0) {               // if status is 0 then we are good
-    readings["Printer State"] = "printer online";   // debug that we are online
+    readings["Printer State"] = "Controller online";   // debug that we are online
   } else {
-    readings["Printer State"] = "printer offline: ";  // debug that we are offline
+    readings["Printer State"] = "Controller offline: ";  // debug that we are offline
   //  DB_LN(printStatus);        // debug the returned status code  
   } 
   // readings["khoiluong"] = String(random(10,100)) + "Kg";
